@@ -36,5 +36,5 @@ Apart from these minor changes, the code remains exactly as it was originally wr
 
 ## Final Note
 
-This may not be perfect code, but it represents the beginning of my journey.
+This may not be perfect code, but it represents the beginning of my journey...
 Future repositories will show how far I’ve come!
