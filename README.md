@@ -15,6 +15,13 @@ You’ll find a mix of:
 
 At this stage, I wasn’t focused on writing clean or optimized code — I was focused on exploring and learning.
 
+## Why the Code is Messy
+
+The code in this repository may appear unorganized or inconsistent.
+This is intentional — it reflects my starting point as a programmer, when I was still figuring things out and didn’t fully understand best practices or structure.
+
+Rather than cleaning it up, I chose to keep it as-is to accurately represent how I began.
+
 ## Purpose
 
 This repository is kept as a record of my starting point as a programmer.
@@ -30,4 +37,4 @@ Apart from these minor changes, the code remains exactly as it was originally wr
 ## Final Note
 
 This may not be perfect code, but it represents the beginning of my journey.
-Future repositories will show how far I’ve come 
+Future repositories will show how far I’ve come!
