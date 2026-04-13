@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultra Chemistry + Physics Sandbox</title>
+<style>
+/* ========================= GLOBAL THEME ========================= */
+:root{
+  --bg:#0a0d14;
+  --panel:#111827;
+  --panel-soft:#161e2e;
+  --accent:#6ee7b7;
+  --accent2:#93c5fd;
+  --accent3:#f472b6;
+  --danger:#f87171;
+  --warn:#facc15;
+  --text:#e5e7eb;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:radial-gradient(circle at top,#111827,#020617);
+  color:var(--text);
+  font-family:Inter,Segoe UI,Roboto,sans-serif;
+}
+
+/* ========================= LAYOUT ========================= */
+#app{
+  display:grid;
+  grid-template-columns:260px 1fr 320px;
+  min-height:100vh;
+  background:#020617;
+  color:var(--text);
+}
+{
+  display:grid;
+  grid-template-columns:280px 1fr 380px;
+  grid-template-rows:64px 1fr;
+  height:100vh;
+  gap:12px;
+  padding:12px;
+}
+header{
+  grid-column:1/4;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 18px;
+  border-radius:18px;
+  background:linear-gradient(135deg,#020617,#111827);
+}
+header h1{font-size:20px;margin:0;font-weight:800}
+#topNav{display:flex;gap:10px}
+.navBtn{
+  padding:10px 18px;
+  border-radius:14px;
+  border:none;
+  background:#1f2937;
+  color:var(--text);
+  cursor:pointer;
+  font-weight:700;
+  position:relative
+}
+.navBtn.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#022c22}
+.navBtn.locked{opacity:.6;cursor:not-allowed}
+.navBtn.locked::after{
+  content:'Coming Soon';
+  position:absolute;
+  bottom:-18px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:10px;
+  opacity:.7
+}
+#modeSwitch button.active{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#022c22
+}
+.panel{
+  background:linear-gradient(180deg,var(--panel),var(--panel-soft));
+  border-radius:20px;
+  padding:14px;
+  overflow:hidden
+}
+
+/* ========================= INVENTORY ========================= */
+#inventory{overflow-y:auto}
+.inv-section{margin-bottom:14px}
+.inv-section h3{margin:6px 0 10px 4px;font-size:14px;opacity:.9}
+.chem-card{
+  background:#020617aa;
+  border-radius:14px;
+  padding:10px;
+  margin-bottom:10px;
+  cursor:pointer;
+  border:1px solid #1f2937;
+  transition:.15s
+}
+.chem-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.chem-name{font-weight:700}
+.chem-formula{font-family:monospace;font-size:14px}
+.chem-meta{font-size:12px;opacity:.85}
+.hazard.low{color:var(--accent)}
+.hazard.mid{color:var(--warn)}
+.hazard.high{color:var(--danger)}
+
+/* ========================= CHAMBER ========================= */
+#chamber{
+  height:300px;
+  border-radius:26px;
+  border:2px dashed var(--accent2);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  margin-bottom:14px
+}
+#selectedList span{
+  background:#020617cc;
+  padding:6px 14px;
+  border-radius:999px;
+  margin:4px;
+  display:inline-block
+}
+.bubble{position:absolute;bottom:10px;width:10px;height:10px;border-radius:50%;background:#e5e7ebaa;animation:rise 3s linear forwards}
+.smoke{position:absolute;width:20px;height:20px;border-radius:50%;background:#9ca3af55;animation:smoke 4s ease-out forwards}
+@keyframes rise{to{transform:translateY(-260px);opacity:0}}
+@keyframes smoke{to{transform:translate(40px,-200px) scale(2);opacity:0}}
+
+/* ========================= OUTPUT ========================= */
+#equation{font-size:20px;font-weight:800;margin-bottom:6px}
+#explain{opacity:.9;line-height:1.6}
+
+/* ========================= PHYSICS ========================= */
+#physicsCanvas{width:100%;height:360px;background:#020617;border-radius:20px}
+.slider{width:100%}
+.readout{font-family:monospace;font-size:13px;margin-top:6px}
+
+/* ========================= CONTROLS ========================= */
+.controls button{
+  width:100%;
+  margin-top:10px;
+  padding:12px;
+  border-radius:16px;
+  border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  font-weight:800;
+  cursor:pointer
+}
+.controls button.secondary{background:#1f2937;color:var(--text)}
+
+
+/* ========================= LANDING SCREEN ========================= */
+#landing{
+  position:fixed;
+  inset:0;
+  background:radial-gradient(circle at top,#020617,#000);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+  visibility:visible;
+}
+
+  position:fixed;
+  inset:0;
+  background:radial-gradient(circle at top,#020617,#000);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:9999
+}
+.landing-card{
+  background:linear-gradient(180deg,#020617,#111827);
+  border-radius:26px;
+  padding:42px 48px;
+  width:min(520px,90vw);
+  text-align:center;
+  box-shadow:0 30px 80px #000
+}
+.landing-card h1{font-size:32px;margin:0 0 10px}
+.tagline{opacity:.85;margin-bottom:28px}
+.landing-buttons{display:flex;flex-direction:column;gap:14px}
+.landing-buttons button{
+  padding:16px;
+  border-radius:18px;
+  border:none;
+  font-size:16px;
+  font-weight:800;
+  cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#022c22
+}
+.landing-buttons button.locked{
+  background:#1f2937;
+  color:var(--text);
+  cursor:not-allowed;
+  opacity:.6
+}
+
+</head>
+<body style="background:#020617;color:#e5e7eb;">
+<div id="landing">
+  <div class="landing-card">
+    <h1>🔬 Nova Science Lab</h1>
+    <p class="tagline">A multi-discipline virtual science sandbox</p>
+    <div class="landing-buttons">
+      <button onclick="enterApp('chemistry')">🧪 Enter Chemistry Lab</button>
+      <button onclick="enterApp('physics')">⚛️ Enter Physics Lab</button>
+      <button class="locked">🧬 Biology (Coming Soon)</button>
+    </div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+<header>
+  <h1>🔬 Nova Science Sandbox</h1>
+  <div id="topNav">
+    <button class="navBtn active" data-target="chemistry">Chemistry</button>
+    <button class="navBtn" data-target="physics">Physics</button>
+    <button class="navBtn locked" data-target="biology" title="Coming Soon">Biology 🔒</button>
+  </div>
+</header>
+
+<div class="panel" id="inventory" data-section="chemistry"></div>
+
+<div class="panel" id="mainPanel" data-section="chemistry">
+  <div id="chemistryMode">
+    <div id="chamber"><div id="selectedList">No chemicals added</div></div>
+    <div id="equation">—</div>
+    <div id="explain">Select chemicals and press React.</div>
+    <div class="controls">
+      <button onclick="reactChem()">React</button>
+      <button class="secondary" onclick="resetChem()">Reset</button>
+    </div>
+  </div>
+  <div id="physicsMode" style="display:none">
+    <canvas id="physicsCanvas"></canvas>
+    Gravity
+    <input type="range" min="0" max="25" step="0.1" value="9.8" id="grav" class="slider">
+    <div class="readout" id="physReadout"></div>
+    <div class="controls"><button onclick="resetPhysics()">Reset Physics</button></div>
+  </div>
+</div>
+
+<div class="panel" data-section="chemistry"><h3>📓 Lab Notebook</h3><div id="log"></div></div>
+</div>
+
+<script>
+/* ========================= CHEMICAL DATABASE ========================= */
+const chemicals=[
+// ===== ACIDS (Expanded) =====
+{n:'Hydrochloric Acid',f:'HCl',s:'aq',h:'high',cat:'Acids'},
+{n:'Sulfuric Acid',f:'H₂SO₄',s:'aq',h:'high',cat:'Acids'},
+{n:'Nitric Acid',f:'HNO₃',s:'aq',h:'high',cat:'Acids'},
+{n:'Acetic Acid',f:'CH₃COOH',s:'aq',h:'mid',cat:'Acids'},
+{n:'Carbonic Acid',f:'H₂CO₃',s:'aq',h:'low',cat:'Acids'},
+{n:'Phosphoric Acid',f:'H₃PO₄',s:'aq',h:'mid',cat:'Acids'},
+{n:'Hydrofluoric Acid',f:'HF',s:'aq',h:'high',cat:'Acids'},
+{n:'Hydrobromic Acid',f:'HBr',s:'aq',h:'high',cat:'Acids'},
+{n:'Hydroiodic Acid',f:'HI',s:'aq',h:'high',cat:'Acids'},
+{n:'Perchloric Acid',f:'HClO₄',s:'aq',h:'high',cat:'Acids'},
+
+// ===== BASES =====
+{n:'Sodium Hydroxide',f:'NaOH',s:'aq',h:'high',cat:'Bases'},
+{n:'Potassium Hydroxide',f:'KOH',s:'aq',h:'high',cat:'Bases'},
+{n:'Calcium Hydroxide',f:'Ca(OH)₂',s:'s',h:'mid',cat:'Bases'},
+{n:'Magnesium Hydroxide',f:'Mg(OH)₂',s:'s',h:'mid',cat:'Bases'},
+{n:'Ammonium Hydroxide',f:'NH₄OH',s:'aq',h:'mid',cat:'Bases'},
+
+// ===== SALTS =====
+{n:'Sodium Chloride',f:'NaCl',s:'s',h:'low',cat:'Salts'},
+{n:'Potassium Nitrate',f:'KNO₃',s:'s',h:'low',cat:'Salts'},
+{n:'Silver Nitrate',f:'AgNO₃',s:'aq',h:'mid',cat:'Salts'},
+{n:'Barium Chloride',f:'BaCl₂',s:'aq',h:'mid',cat:'Salts'},
+{n:'Copper Sulfate',f:'CuSO₄',s:'s',h:'mid',cat:'Salts'},
+{n:'Sodium Sulfate',f:'Na₂SO₄',s:'s',h:'low',cat:'Salts'},
+{n:'Ammonium Chloride',f:'NH₄Cl',s:'s',h:'low',cat:'Salts'},
+
+// ===== METALS =====
+{n:'Iron',f:'Fe',s:'s',h:'low',cat:'Metals'},
+{n:'Copper',f:'Cu',s:'s',h:'low',cat:'Metals'},
+{n:'Zinc',f:'Zn',s:'s',h:'low',cat:'Metals'},
+{n:'Magnesium',f:'Mg',s:'s',h:'low',cat:'Metals'},
+{n:'Aluminium',f:'Al',s:'s',h:'low',cat:'Metals'},
+{n:'Sodium',f:'Na',s:'s',h:'high',cat:'Metals'},
+{n:'Potassium',f:'K',s:'s',h:'high',cat:'Metals'},
+{n:'Calcium',f:'Ca',s:'s',h:'mid',cat:'Metals'},
+
+// ===== NON-METALS & GASES =====
+{n:'Oxygen',f:'O₂',s:'g',h:'low',cat:'Gases'},
+{n:'Hydrogen',f:'H₂',s:'g',h:'high',cat:'Gases'},
+{n:'Carbon Dioxide',f:'CO₂',s:'g',h:'low',cat:'Gases'},
+{n:'Nitrogen',f:'N₂',s:'g',h:'low',cat:'Gases'},
+{n:'Chlorine',f:'Cl₂',s:'g',h:'high',cat:'Gases'},
+{n:'Sulfur Dioxide',f:'SO₂',s:'g',h:'mid',cat:'Gases'},
+{n:'Ammonia Gas',f:'NH₃',s:'g',h:'mid',cat:'Gases'},
+
+// ===== ORGANIC =====
+{n:'Glucose',f:'C₆H₁₂O₆',s:'s',h:'low',cat:'Organic'},
+{n:'Ethanol',f:'C₂H₅OH',s:'l',h:'mid',cat:'Organic'},
+{n:'Methane',f:'CH₄',s:'g',h:'high',cat:'Organic'},
+{n:'Propane',f:'C₃H₈',s:'g',h:'high',cat:'Organic'},
+{n:'Butane',f:'C₄H₁₀',s:'g',h:'high',cat:'Organic'},
+{n:'Benzene',f:'C₆H₆',s:'l',h:'high',cat:'Organic'},
+{n:'Methanol',f:'CH₃OH',s:'l',h:'high',cat:'Organic'},
+{n:'Acetone',f:'C₃H₆O',s:'l',h:'high',cat:'Organic'}
+];
+
+/* ========================= REACTION REGISTRY ========================= */
+const reactions=[
+{r:['HCl','NaOH'],eq:'HCl + NaOH → NaCl + H₂O',type:'Neutralization',dH:'Exothermic',fx:'bubble'},
+{r:['AgNO₃','NaCl'],eq:'AgNO₃ + NaCl → AgCl↓ + NaNO₃',type:'Precipitation',dH:'Neutral',fx:'smoke'},
+{r:['NaHCO₃','CH₃COOH'],eq:'NaHCO₃ + CH₃COOH → CO₂↑ + H₂O + CH₃COONa',type:'Gas Evolution',dH:'Endothermic',fx:'bubble'},
+{r:['Mg','O₂'],eq:'2Mg + O₂ → 2MgO',type:'Combustion',dH:'Highly Exothermic',fx:'smoke'},
+{r:['Zn','HCl'],eq:'Zn + 2HCl → ZnCl₂ + H₂↑',type:'Redox',dH:'Exothermic',fx:'bubble'},
+{r:['CH₄','O₂'],eq:'CH₄ + 2O₂ → CO₂ + 2H₂O',type:'Combustion',dH:'Highly Exothermic',fx:'smoke'}
+];
+
+/* ========================= INVENTORY RENDER ========================= */
+const inv=document.getElementById('inventory');
+const grouped={};
+chemicals.forEach(c=>{(grouped[c.cat]=grouped[c.cat]||[]).push(c)});
+Object.keys(grouped).forEach(cat=>{
+  const sec=document.createElement('div');sec.className='inv-section';
+  sec.innerHTML=`<h3>${cat}</h3>`;
+  grouped[cat].forEach(c=>{
+    const d=document.createElement('div');d.className='chem-card';
+    d.innerHTML=`<div class=chem-name>${c.n}</div><div class=chem-formula>${c.f}</div><div class=chem-meta>${c.s} • <span class='hazard ${c.h}'>${c.h}</span></div>`;
+    d.onclick=()=>addChem(c.f);
+    sec.appendChild(d);
+  });
+  inv.appendChild(sec);
+});
+
+/* ========================= CHEMISTRY ENGINE ========================= */
+const selected=[];
+function addChem(f){if(selected.length>=4)return;selected.push(f);renderSelected()}
+function renderSelected(){const box=document.getElementById('selectedList');box.innerHTML='';if(!selected.length){box.textContent='No chemicals added';return}selected.forEach(x=>{const s=document.createElement('span');s.textContent=x;box.appendChild(s)})}
+function reactChem(){const eq=document.getElementById('equation');const ex=document.getElementById('explain');const found=reactions.find(r=>r.r.every(x=>selected.includes(x)));if(found){eq.textContent=found.eq;ex.textContent=`${found.type} | ΔH: ${found.dH}`;log(found.eq);effects(found.fx)}else{eq.textContent='No Reaction';ex.textContent='No favorable thermodynamic or kinetic pathway detected.'}}
+function effects(t){const c=document.getElementById('chamber');for(let i=0;i<14;i++){const e=document.createElement('div');e.className=t==='smoke'?'smoke':'bubble';e.style.left=Math.random()*90+'%';c.appendChild(e);setTimeout(()=>e.remove(),4000)}}
+function resetChem(){selected.length=0;renderSelected();equation.textContent='—';explain.textContent=''}
+function log(t){const l=document.getElementById('log');const e=document.createElement('div');e.textContent=new Date().toLocaleTimeString()+" • "+t;l.prepend(e)}
+
+/* ========================= PHYSICS ENGINE ========================= */
+const canvas=document.getElementById('physicsCanvas');const ctx=canvas.getContext('2d');let obj={x:200,y:40,v:0,m:1};function resize(){canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight}window.onresize=resize;resize();
+function step(){ctx.clearRect(0,0,canvas.width,canvas.height);const g=parseFloat(grav.value);obj.v+=g*0.016;obj.y+=obj.v;if(obj.y>canvas.height-20){obj.y=canvas.height-20;obj.v*=-0.6}ctx.fillStyle='#93c5fd';ctx.beginPath();ctx.arc(obj.x,obj.y,12,0,Math.PI*2);ctx.fill();const ke=0.5*obj.m*obj.v*obj.v;physReadout.textContent=`v=${obj.v.toFixed(2)} m/s | a=${g} | KE=${ke.toFixed(2)} J`;requestAnimationFrame(step)}step();function resetPhysics(){obj.y=40;obj.v=0}
+
+/* ========================= MODE SWITCH ========================= */
+// ===== TOP NAVIGATION LOGIC =====
+const navBtns=document.querySelectorAll('.navBtn');
+const sections=document.querySelectorAll('[data-section]');
+navBtns.forEach(b=>b.onclick=()=>{
+  if(b.classList.contains('locked'))return;
+  navBtns.forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  const target=b.dataset.target;
+  sections.forEach(s=>{
+    s.style.display = (s.dataset.section===target)?'block':'none';
+  });
+  chemistryMode.style.display = target==='chemistry'?'block':'none';
+  physicsMode.style.display = target==='physics'?'block':'none';
+});
+
+
+/* ========================= LANDING LOGIC ========================= */
+function enterApp(mode){
+  const landing = document.getElementById('landing');
+  const app = document.getElementById('app');
+  if(!landing || !app){
+    console.error('Landing or app container missing');
+    return;
+  }
+  landing.style.display = 'none';
+  app.style.display = 'grid';
+  app.style.visibility = 'visible';
+  document.body.style.background = '#020617';
+
+  const btn = mode === 'physics'
+    ? document.querySelector('[data-target="physics"]')
+    : document.querySelector('[data-target="chemistry"]');
+
+  if(btn){ btn.click(); }
+}
+(mode){
+  document.getElementById('landing').style.display='none';
+  document.getElementById('app').style.display='grid';
+  const targetBtn = mode==='physics' ? document.querySelector('[data-target="physics"]') : document.querySelector('[data-target="chemistry"]');
+  if(targetBtn) targetBtn.click();
+}
+
+</script>
+</body>
+</html>

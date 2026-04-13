@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Advanced Classical Mechanics — Projectile Motion Simulator</title>
+
+<style>
+/* ===============================
+   GLOBAL DESIGN SYSTEM
+   =============================== */
+
+:root {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --text: #1f2933;
+  --accent: #2563eb;
+  --grid: #d1d5db;
+}
+
+body.dark {
+  --bg: #0f172a;
+  --panel: #111827;
+  --text: #e5e7eb;
+  --accent: #38bdf8;
+  --grid: #334155;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+header {
+  padding: 1rem;
+  text-align: center;
+  background: var(--panel);
+  border-bottom: 2px solid var(--grid);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+@media (max-width: 900px) {
+  .container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===============================
+   CONTROL PANEL
+   =============================== */
+
+.panel {
+  background: var(--panel);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--grid);
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.control-group {
+  margin-bottom: 1rem;
+}
+
+.control-group label {
+  font-size: 0.9rem;
+  display: block;
+}
+
+input[type=range] {
+  width: 100%;
+}
+
+.buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+button {
+  flex: 1;
+  padding: 0.5rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--grid);
+}
+
+/* ===============================
+   CANVAS & GRAPHS
+   =============================== */
+
+canvas {
+  width: 100%;
+  height: 300px;
+  background: var(--panel);
+  border: 1px solid var(--grid);
+  border-radius: 6px;
+}
+
+.graphs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+/* ===============================
+   THEORY PANEL
+   =============================== */
+
+.theory {
+  font-size: 0.9rem;
+  display: none;
+}
+
+.equation {
+  font-family: "Courier New", monospace;
+  background: rgba(0,0,0,0.05);
+  padding: 0.3rem;
+  border-radius: 4px;
+  margin: 0.3rem 0;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Advanced Classical Mechanics — Projectile Motion</h1>
+  <button class="secondary" onclick="toggleDark()">Toggle Dark Mode</button>
+</header>
+
+<div class="container">
+
+  <!-- CONTROLS -->
+  <div class="panel">
+    <h2>Physical Parameters</h2>
+
+    <div class="control-group">
+      <label>Initial Velocity v₀ (m/s): <span id="vVal">20</span></label>
+      <input type="range" min="5" max="50" value="20" id="velocity">
+    </div>
+
+    <div class="control-group">
+      <label>Launch Angle θ (degrees): <span id="aVal">45</span></label>
+      <input type="range" min="10" max="80" value="45" id="angle">
+    </div>
+
+    <div class="control-group">
+      <label>Gravity g (m/s²): <span id="gVal">9.81</span></label>
+      <input type="range" min="1" max="20" step="0.1" value="9.81" id="gravity">
+    </div>
+
+    <div class="buttons">
+      <button onclick="start()">Start</button>
+      <button onclick="pause()">Pause</button>
+      <button onclick="reset()">Reset</button>
+    </div>
+
+    <button class="secondary" onclick="toggleTheory()">Toggle Theory</button>
+
+    <div class="theory" id="theory">
+      <p><strong>Governing Equations:</strong></p>
+      <div class="equation">x(t) = v₀ cosθ · t</div>
+      <div class="equation">y(t) = v₀ sinθ · t − ½ g t²</div>
+      <div class="equation">vₓ = constant</div>
+      <div class="equation">vᵧ = v₀ sinθ − g t</div>
+    </div>
+  </div>
+
+  <!-- VISUALIZATION -->
+  <div>
+    <canvas id="sim"></canvas>
+
+    <div class="graphs">
+      <canvas id="posGraph"></canvas>
+      <canvas id="velGraph"></canvas>
+      <canvas id="accGraph"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ===============================
+   PHYSICS + NUMERICS ENGINE
+   =============================== */
+
+const sim = document.getElementById("sim");
+const ctx = sim.getContext("2d");
+
+const graphs = {
+  pos: document.getElementById("posGraph").getContext("2d"),
+  vel: document.getElementById("velGraph").getContext("2d"),
+  acc: document.getElementById("accGraph").getContext("2d")
+};
+
+let running = false;
+let t = 0;
+const dt = 0.02;
+
+let data = [];
+
+/* ===============================
+   UI ELEMENTS
+   =============================== */
+
+const velocity = document.getElementById("velocity");
+const angle = document.getElementById("angle");
+const gravity = document.getElementById("gravity");
+
+velocity.oninput = () => vVal.textContent = velocity.value;
+angle.oninput = () => aVal.textContent = angle.value;
+gravity.oninput = () => gVal.textContent = gravity.value;
+
+/* ===============================
+   SIMULATION CONTROL
+   =============================== */
+
+function start() { running = true; }
+function pause() { running = false; }
+
+function reset() {
+  running = false;
+  t = 0;
+  data = [];
+  draw();
+}
+
+function toggleTheory() {
+  const th = document.getElementById("theory");
+  th.style.display = th.style.display === "block" ? "none" : "block";
+}
+
+function toggleDark() {
+  document.body.classList.toggle("dark");
+}
+
+/* ===============================
+   DRAWING UTILITIES
+   =============================== */
+
+function drawAxes(ctx, w, h) {
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--grid");
+  ctx.beginPath();
+  ctx.moveTo(40, h - 30);
+  ctx.lineTo(w - 10, h - 30);
+  ctx.moveTo(40, h - 30);
+  ctx.lineTo(40, 10);
+  ctx.stroke();
+}
+
+/* ===============================
+   MAIN LOOP
+   =============================== */
+
+function update() {
+  if (running) {
+    const v0 = +velocity.value;
+    const theta = angle.value * Math.PI / 180;
+    const g = +gravity.value;
+
+    const x = v0 * Math.cos(theta) * t;
+    const y = v0 * Math.sin(theta) * t - 0.5 * g * t * t;
+    const vx = v0 * Math.cos(theta);
+    const vy = v0 * Math.sin(theta) - g * t;
+
+    if (y >= 0) {
+      data.push({ t, x, y, vx, vy });
+      t += dt;
+    } else {
+      running = false;
+    }
+  }
+
+  draw();
+  requestAnimationFrame(update);
+}
+
+function draw() {
+  sim.width = sim.clientWidth;
+  sim.height = sim.clientHeight;
+
+  ctx.clearRect(0,0,sim.width,sim.height);
+  drawAxes(ctx, sim.width, sim.height);
+
+  ctx.strokeStyle = "red";
+  ctx.beginPath();
+
+  data.forEach((p,i) => {
+    const sx = 40 + p.x * 10;
+    const sy = sim.height - 30 - p.y * 10;
+    if (i === 0) ctx.moveTo(sx, sy);
+    else ctx.lineTo(sx, sy);
+  });
+
+  ctx.stroke();
+
+  plot(graphs.pos, p => p.y, "Position");
+  plot(graphs.vel, p => p.vy, "Velocity");
+  plot(graphs.acc, () => -gravity.value, "Acceleration");
+}
+
+function plot(ctx, accessor, label) {
+  const w = ctx.canvas.width = ctx.canvas.clientWidth;
+  const h = ctx.canvas.height = ctx.canvas.clientHeight;
+
+  ctx.clearRect(0,0,w,h);
+  drawAxes(ctx, w, h);
+
+  ctx.beginPath();
+  ctx.strokeStyle = "green";
+
+  data.forEach((p,i) => {
+    const x = 40 + p.t * 40;
+    const y = h/2 - accessor(p) * 5;
+    if (i === 0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+
+  ctx.stroke();
+}
+
+update();
+</script>
+
+</body>
+</html>

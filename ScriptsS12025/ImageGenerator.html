@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Image Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800">
+  <div class="min-h-screen flex flex-col items-center justify-center p-4">
+    <h1 class="text-4xl font-bold mb-6 text-center">🎨 AI Image Generator</h1>
+
+    <div class="bg-white p-6 rounded shadow-md w-full max-w-xl">
+      <label for="prompt" class="block text-lg font-semibold mb-2">Enter a description:</label>
+      <input type="text" id="prompt" class="w-full border border-gray-300 rounded p-2 mb-4" placeholder="e.g. A cat riding a bicycle through space">
+      <button onclick="generateImage()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Generate Image</button>
+      <div id="image-container" class="mt-6 text-center"></div>
+    </div>
+  </div>
+
+  <script>
+    function generateImage() {
+      const prompt = document.getElementById("prompt").value;
+      const imageContainer = document.getElementById("image-container");
+
+      if (!prompt.trim()) {
+        alert("Please enter a description.");
+        return;
+      }
+
+      // Use Unsplash as a placeholder (you can replace with real AI API)
+      const encodedPrompt = encodeURIComponent(prompt);
+      const imageUrl = `https://source.unsplash.com/800x600/?${encodedPrompt}`;
+
+      imageContainer.innerHTML = `<img src="${imageUrl}" alt="Generated from: ${prompt}" class="mt-4 rounded shadow-md mx-auto">`;
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chess Master</title>
+
+  <!-- ✅ Chessboard.js CSS (Correct CDN) -->
+  <link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/www/css/chessboard-1.0.0.min.css" />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-image: url('A_pixel_art_digital_illustration_captures_a_sunset.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    #title {
+      text-align: center;
+      font-size: 40px;
+      font-weight: bold;
+      color: white;
+      text-shadow: 0 0 20px purple;
+      animation: bounce 1.5s infinite alternate;
+      margin-top: 10px;
+    }
+
+    @keyframes bounce {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-10px); }
+    }
+
+    .button {
+      position: absolute;
+      padding: 8px 15px;
+      font-size: 14px;
+      background-color: rgba(255, 255, 255, 0.8);
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #backBtn { top: 10px; left: 10px; }
+    #settingsBtn { top: 10px; right: 10px; }
+    #resetBtn { top: 50px; right: 10px; }
+
+    #moveHistory {
+      position: absolute;
+      right: 10px;
+      top: 100px;
+      width: 150px;
+      max-height: 400px;
+      overflow-y: auto;
+      background-color: rgba(255, 255, 255, 0.8);
+      padding: 10px;
+      border-radius: 5px;
+    }
+
+    #board {
+      width: 400px;
+      margin: 80px auto 20px auto;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="title">Chess Master</div>
+
+  <button class="button" id="backBtn" onclick="goBack()">⬅ Back to Home</button>
+  <button class="button" id="settingsBtn">⚙ Settings</button>
+  <button class="button" id="resetBtn" onclick="resetBoard()">🔁 Reset</button>
+
+  <div id="board"></div>
+  <div id="moveHistory"><strong>Moves:</strong><br/></div>
+
+  <!-- ✅ Chessboard.js + Chess.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js"></script>
+  <script src="https://unpkg.com/chessboardjs@1.0.0/www/js/chessboard-1.0.0.min.js"></script>
+
+  <script>
+    const game = new Chess();
+    let board;
+
+    function onDrop(source, target) {
+      const move = game.move({
+        from: source,
+        to: target,
+        promotion: 'q'
+      });
+
+      if (move === null) return 'snapback';
+      updateMoveHistory();
+    }
+
+    function updateMoveHistory() {
+      const history = game.history({ verbose: true });
+      const moveHistoryDiv = document.getElementById('moveHistory');
+      moveHistoryDiv.innerHTML = "<strong>Moves:</strong><br/>";
+      for (let i = 0; i < history.length; i += 2) {
+        const white = history[i] ? history[i].from + history[i].to : '';
+        const black = history[i + 1] ? history[i + 1].from + history[i + 1].to : '';
+        moveHistoryDiv.innerHTML += `${(i / 2) + 1}. ${white} ${black}<br/>`;
+      }
+    }
+
+    function resetBoard() {
+      game.reset();
+      board.position('start');
+      updateMoveHistory();
+    }
+
+    function goBack() {
+      window.location.href = "interface.html";
+    }
+
+    // ✅ Initialize board after DOM is ready
+    window.addEventListener('DOMContentLoaded', () => {
+      board = Chessboard('board', {
+        draggable: true,
+        position: 'start',
+        onDrop: onDrop
+      });
+    });
+  </script>
+</body>
+</html>

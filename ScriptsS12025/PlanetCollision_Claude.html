@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planet Collision</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 14px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            cursor: pointer;
+            background: #4a90e2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #357abd;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div>Planet Collision Simulation</div>
+        <div id="stage">Stage: Approaching</div>
+        <button onclick="restartSimulation()">Restart</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let planet1, planet2, mergedPlanet;
+        let particles = [];
+        let gasParticles = [];
+        let stage = 'approach';
+        let time = 0;
+        
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 20);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            const ambientLight = new THREE.AmbientLight(0x404040, 1);
+            scene.add(ambientLight);
+            
+            const pointLight = new THREE.PointLight(0xffffff, 2, 100);
+            pointLight.position.set(10, 10, 10);
+            scene.add(pointLight);
+            
+            const pointLight2 = new THREE.PointLight(0xffffaa, 1, 100);
+            pointLight2.position.set(-10, -5, 10);
+            scene.add(pointLight2);
+            
+            const geo1 = new THREE.SphereGeometry(2, 32, 32);
+            const mat1 = new THREE.MeshPhongMaterial({ 
+                color: 0x4488ff,
+                emissive: 0x112244,
+                shininess: 30
+            });
+            planet1 = new THREE.Mesh(geo1, mat1);
+            planet1.position.set(-10, 0, 0);
+            scene.add(planet1);
+            
+            const geo2 = new THREE.SphereGeometry(1.8, 32, 32);
+            const mat2 = new THREE.MeshPhongMaterial({ 
+                color: 0xff6644,
+                emissive: 0x441100,
+                shininess: 30
+            });
+            planet2 = new THREE.Mesh(geo2, mat2);
+            planet2.position.set(10, 0, 0);
+            scene.add(planet2);
+            
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        function createDebris() {
+            const debrisCount = 800;
+            for (let i = 0; i < debrisCount; i++) {
+                const geo = new THREE.SphereGeometry(0.05 + Math.random() * 0.1, 4, 4);
+                const mat = new THREE.MeshBasicMaterial({ 
+                    color: Math.random() > 0.5 ? 0x888888 : 0x666644
+                });
+                const debris = new THREE.Mesh(geo, mat);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 2;
+                debris.position.set(
+                    Math.cos(angle) * distance,
+                    (Math.random() - 0.5) * 2,
+                    Math.sin(angle) * distance
+                );
+                
+                debris.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3
+                );
+                
+                debris.angularVel = Math.random() * 0.1;
+                debris.orbitAngle = angle;
+                debris.orbitRadius = distance + Math.random() * 3;
+                debris.orbitSpeed = 0.01 + Math.random() * 0.02;
+                debris.verticalOffset = (Math.random() - 0.5) * 0.5;
+                
+                scene.add(debris);
+                particles.push(debris);
+            }
+        }
+        
+        function createGas() {
+            const gasCount = 1200;
+            for (let i = 0; i < gasCount; i++) {
+                const geo = new THREE.SphereGeometry(0.15 + Math.random() * 0.2, 6, 6);
+                const mat = new THREE.MeshBasicMaterial({ 
+                    color: new THREE.Color().setHSL(Math.random() * 0.1 + 0.05, 0.6, 0.5),
+                    transparent: true,
+                    opacity: 0.3 + Math.random() * 0.3
+                });
+                const gas = new THREE.Mesh(geo, mat);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 3;
+                gas.position.set(
+                    Math.cos(angle) * distance,
+                    (Math.random() - 0.5) * 3,
+                    Math.sin(angle) * distance
+                );
+                
+                gas.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.4,
+                    (Math.random() - 0.5) * 0.4,
+                    (Math.random() - 0.5) * 0.4
+                );
+                
+                gas.orbitAngle = angle;
+                gas.orbitRadius = distance + Math.random() * 4;
+                gas.orbitSpeed = 0.008 + Math.random() * 0.015;
+                gas.verticalOffset = (Math.random() - 0.5) * 0.3;
+                
+                scene.add(gas);
+                gasParticles.push(gas);
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.016;
+            
+            if (stage === 'approach') {
+                planet1.position.x += 0.08;
+                planet2.position.x -= 0.08;
+                
+                planet1.rotation.y += 0.02;
+                planet2.rotation.y -= 0.02;
+                
+                if (planet1.position.x >= -0.5) {
+                    stage = 'collision';
+                    document.getElementById('stage').textContent = 'Stage: Collision!';
+                    
+                    scene.remove(planet1);
+                    scene.remove(planet2);
+                    
+                    const geoMerged = new THREE.SphereGeometry(2.5, 32, 32);
+                    const matMerged = new THREE.MeshPhongMaterial({ 
+                        color: 0xff8844,
+                        emissive: 0x442200,
+                        shininess: 30
+                    });
+                    mergedPlanet = new THREE.Mesh(geoMerged, matMerged);
+                    mergedPlanet.position.set(0, 0, 0);
+                    scene.add(mergedPlanet);
+                    
+                    createDebris();
+                    createGas();
+                }
+            } else if (stage === 'collision') {
+                mergedPlanet.rotation.y += 0.01;
+                
+                particles.forEach(p => {
+                    if (time < 3) {
+                        p.position.add(p.velocity);
+                        p.velocity.multiplyScalar(0.98);
+                        p.rotation.y += p.angularVel;
+                    } else {
+                        p.orbitAngle += p.orbitSpeed;
+                        p.position.x = Math.cos(p.orbitAngle) * p.orbitRadius;
+                        p.position.z = Math.sin(p.orbitAngle) * p.orbitRadius;
+                        p.position.y += (p.verticalOffset - p.position.y) * 0.02;
+                        
+                        if (p.orbitRadius > 4) {
+                            p.orbitRadius -= 0.005;
+                        }
+                    }
+                });
+                
+                gasParticles.forEach(g => {
+                    if (time < 3) {
+                        g.position.add(g.velocity);
+                        g.velocity.multiplyScalar(0.97);
+                    } else {
+                        g.orbitAngle += g.orbitSpeed;
+                        g.position.x = Math.cos(g.orbitAngle) * g.orbitRadius;
+                        g.position.z = Math.sin(g.orbitAngle) * g.orbitRadius;
+                        g.position.y += (g.verticalOffset - g.position.y) * 0.015;
+                        
+                        if (g.orbitRadius > 5) {
+                            g.orbitRadius -= 0.003;
+                        }
+                        
+                        g.material.opacity = 0.3 + Math.sin(time + g.orbitAngle) * 0.1;
+                    }
+                });
+                
+                if (time >= 3 && stage === 'collision') {
+                    stage = 'ring';
+                    document.getElementById('stage').textContent = 'Stage: Ring Formation';
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function restartSimulation() {
+            particles.forEach(p => scene.remove(p));
+            gasParticles.forEach(g => scene.remove(g));
+            particles = [];
+            gasParticles = [];
+            
+            if (mergedPlanet) scene.remove(mergedPlanet);
+            if (planet1) scene.remove(planet1);
+            if (planet2) scene.remove(planet2);
+            
+            const geo1 = new THREE.SphereGeometry(2, 32, 32);
+            const mat1 = new THREE.MeshPhongMaterial({ 
+                color: 0x4488ff,
+                emissive: 0x112244,
+                shininess: 30
+            });
+            planet1 = new THREE.Mesh(geo1, mat1);
+            planet1.position.set(-10, 0, 0);
+            scene.add(planet1);
+            
+            const geo2 = new THREE.SphereGeometry(1.8, 32, 32);
+            const mat2 = new THREE.MeshPhongMaterial({ 
+                color: 0xff6644,
+                emissive: 0x441100,
+                shininess: 30
+            });
+            planet2 = new THREE.Mesh(geo2, mat2);
+            planet2.position.set(10, 0, 0);
+            scene.add(planet2);
+            
+            stage = 'approach';
+            time = 0;
+            document.getElementById('stage').textContent = 'Stage: Approaching';
+        }
+        
+        init();
+        animate();
+    </script>
+</body>
+</html>

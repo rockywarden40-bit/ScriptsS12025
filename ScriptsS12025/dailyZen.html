@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Zen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans&family=Playfair+Display&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: 'Open Sans', sans-serif;
+    }
+    h1, h2 {
+      font-family: 'Playfair Display', serif;
+    }
+    .breath-circle {
+      width: 100px;
+      height: 100px;
+      background-color: #7BAF9E;
+      border-radius: 9999px;
+      margin: auto;
+      animation: breathe 4s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.5); }
+    }
+  </style>
+</head>
+
+<body class="bg-[#F4F4F4] text-gray-800">
+  <header class="p-4 bg-[#7BAF9E] text-white flex justify-between items-center">
+    <h1 class="text-2xl">🌸 Daily Zen</h1>
+    <nav class="space-x-4">
+      <a href="#" class="hover:underline">Home</a>
+      <a href="#" class="hover:underline">About</a>
+      <a href="#" class="hover:underline">Archive</a>
+      <a href="#" class="hover:underline">Contact</a>
+    </nav>
+  </header>
+
+  <section class="relative h-[80vh] bg-cover bg-center flex items-center justify-center text-white text-center px-4" style="background-image: url('https://source.unsplash.com/1600x900/?nature,zen');">
+    <div class="bg-black bg-opacity-50 p-6 rounded-xl">
+      <h2 class="text-3xl md:text-4xl">"Breathe. You're exactly where you need to be."</h2>
+      <button onclick="startZen()" class="mt-6 px-6 py-2 bg-white text-[#7BAF9E] font-bold rounded-full hover:bg-gray-200 transition">Start 2-Minute Zen</button>
+    </div>
+  </section>
+
+  <section id="zen-practice" class="hidden text-center py-12">
+    <h2 class="text-2xl mb-4">Today's Zen Practice</h2>
+    <div class="breath-circle"></div>
+    <p class="mt-4 text-lg">Breathe in as the circle expands, out as it contracts.</p>
+    <p id="timer" class="mt-2 text-gray-600"></p>
+  </section>
+
+  <footer class="bg-[#D6CFC4] text-center p-4 text-sm mt-12">
+    Made with calm for your soul • © 2025 Daily Zen
+  </footer>
+
+  <script>
+    function startZen() {
+      document.getElementById('zen-practice').classList.remove('hidden');
+      let timer = 120;
+      const timerElement = document.getElementById('timer');
+      const interval = setInterval(() => {
+        const minutes = Math.floor(timer / 60);
+        const seconds = timer % 60;
+        timerElement.textContent = `Time left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        timer--;
+        if (timer < 0) {
+          clearInterval(interval);
+          timerElement.textContent = "You're done. Stay peaceful ✨";
+        }
+      }, 1000);
+    }
+  </script>
+</body>
+
+</html>

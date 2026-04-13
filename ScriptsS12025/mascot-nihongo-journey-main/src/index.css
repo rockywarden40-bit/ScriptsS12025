@@ -1,0 +1,266 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Particle background animation */
+@keyframes float-particles {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+  50% { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+}
+
+.particles-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, hsl(340, 85%, 85%) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: float-particles 6s ease-in-out infinite;
+}
+
+/* Mascot animations */
+@keyframes gentle-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes tail-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(5deg); }
+}
+
+@keyframes talking {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes point-bounce {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(10px); }
+}
+
+@keyframes bounce-gentle {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(5px); }
+}
+
+.animate-bounce-gentle {
+  animation: bounce-gentle 1s ease-in-out infinite;
+}
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Japanese Cherry Blossom Theme */
+    --background: 0 0% 8%;
+    --foreground: 350 15% 95%;
+
+    --card: 0 10% 12%;
+    --card-foreground: 350 15% 95%;
+
+    --popover: 0 10% 10%;
+    --popover-foreground: 350 15% 95%;
+
+    /* Sakura Pink Primary */
+    --primary: 350 85% 75%;
+    --primary-foreground: 0 0% 10%;
+
+    /* Deep Red Secondary */
+    --secondary: 0 70% 45%;
+    --secondary-foreground: 350 15% 95%;
+
+    --muted: 0 5% 18%;
+    --muted-foreground: 0 5% 60%;
+
+    /* Soft Gold Accent */
+    --accent: 45 85% 65%;
+    --accent-foreground: 0 0% 10%;
+
+    --destructive: 0 90% 60%;
+    --destructive-foreground: 350 15% 95%;
+
+    --border: 0 10% 20%;
+    --input: 0 10% 15%;
+    --ring: 350 85% 75%;
+
+    --radius: 0.75rem;
+
+    /* Custom Japanese colors */
+    --sakura-pink: 350 85% 75%;
+    --sakura-light: 350 90% 85%;
+    --cherry-red: 0 70% 45%;
+    --deep-black: 0 0% 8%;
+    --soft-gold: 45 85% 65%;
+    --wood-brown: 30 40% 35%;
+    
+    /* Glow effects */
+    --glow-sakura: 0 0 20px hsl(350 85% 75% / 0.4);
+    --glow-gold: 0 0 15px hsl(45 85% 65% / 0.3);
+    --glow-red: 0 0 20px hsl(0 70% 45% / 0.3);
+    
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-gentle: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Smooth Professional Animations */
+  @keyframes gentle-float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes soft-fade-in {
+    0% { opacity: 0; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes soft-scale {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  @keyframes subtle-glow {
+    0%, 100% { filter: drop-shadow(0 0 10px hsl(350 85% 75% / 0.3)); }
+    50% { filter: drop-shadow(0 0 20px hsl(350 85% 75% / 0.5)); }
+  }
+
+  @keyframes text-glow {
+    0%, 100% { text-shadow: 0 0 10px hsl(350 85% 75% / 0.5); }
+    50% { text-shadow: 0 0 20px hsl(350 85% 75% / 0.8), 0 0 30px hsl(350 85% 75% / 0.4); }
+  }
+
+  .mascot-idle {
+    animation: gentle-float 4s ease-in-out infinite;
+  }
+
+  .mascot-talking {
+    animation: soft-scale 0.5s ease-in-out infinite;
+  }
+
+  .mascot-thinking {
+    animation: gentle-float 4s ease-in-out infinite, head-tilt 2s ease-in-out infinite;
+  }
+  
+  .mascot-happy {
+    animation: happy-bounce 0.6s ease-in-out;
+  }
+  
+  .mascot-sad {
+    animation: sad-shake 0.5s ease-in-out;
+  }
+
+  @keyframes head-tilt {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(3deg); }
+  }
+
+  @keyframes happy-bounce {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  @keyframes sad-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+
+  .fade-in-smooth {
+    animation: soft-fade-in 0.5s ease-out;
+  }
+
+  .glow-text {
+    animation: text-glow 3s ease-in-out infinite;
+  }
+
+.locked-section {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(0.8);
+}
+
+/* Sakura Petals */
+.sakura-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.sakura-petal {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: linear-gradient(135deg, hsl(340, 85%, 85%) 0%, hsl(340, 85%, 75%) 100%);
+  border-radius: 50% 0 50% 0;
+  animation: fall-petals 10s linear infinite;
+}
+
+@keyframes fall-petals {
+  0% {
+    transform: translateY(-10vh) rotate(0deg);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(110vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

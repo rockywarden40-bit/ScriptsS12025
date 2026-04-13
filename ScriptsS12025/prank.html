@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>System Alert</title>
+  <style>
+    body {
+      background-color: black;
+      color: red;
+      font-family: monospace;
+      text-align: center;
+      margin-top: 20%;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚠️ SYSTEM ALERT ⚠️</h1>
+  <p>Your system has detected unusual activity!</p>
+  <p>Please do not turn off your computer!</p>
+
+  <script>
+    let count = 0;
+    function fakeError() {
+      alert("ERROR: Critical system malfunction detected!");
+      count++;
+      if (count < 5) {
+        setTimeout(fakeError, 500);
+      } else {
+        document.body.innerHTML = "<h1 style='color:lime;'>Just kidding! 😎</h1>";
+      }
+    }
+
+    setTimeout(fakeError, 1000);
+  </script>
+</body>
+</html>

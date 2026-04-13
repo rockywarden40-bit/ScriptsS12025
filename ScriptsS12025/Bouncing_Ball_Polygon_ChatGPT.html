@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bouncing Ball — Growing Polygon</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#60a5fa}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial,sans-serif;background:linear-gradient(180deg,#071026 0%, #0b1220 100%);color:#e6eef8}
+    .wrap{display:grid;place-items:center;height:100%;padding:24px;box-sizing:border-box}
+    .card{width:820px;max-width:96vw;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:14px;padding:18px;box-shadow:0 8px 30px rgba(2,6,23,0.6);}
+    canvas{display:block;background:radial-gradient(circle at 20% 10%, rgba(255,255,255,0.02), transparent 10%), linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border-radius:8px;}
+    .controls{display:flex;gap:12px;align-items:center;margin-top:12px}
+    .pill{background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:999px;font-size:14px}
+    button{background:var(--accent);border:none;color:#04233b;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    .small{font-size:13px;color:#9fb7d9}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <canvas id="c" width="800" height="600"></canvas>
+      <div class="controls">
+        <div class="pill">Sides: <span id="sides">3</span></div>
+        <div class="pill">Speed: <span id="speed">1.00</span>x</div>
+        <div class="pill small" id="msg">Ball starts at polygon center. Collide with a side to grow the polygon and speed up.</div>
+        <div style="margin-left:auto">
+          <button id="reset">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const cx = W/2, cy = H/2;
+
+  // Simulation state
+  let sides = 3;                 // starts as triangle
+  let polygonRadius = 200;      // radius from center to vertices
+  let apothem = null;           // computed from sides and radius
+
+  // Ball
+  const ball = {
+    x: cx,
+    y: cy,
+    r: 10,
+    vx: 0,
+    vy: 0,
+    speedMultiplier: 1.0
+  };
+
+  const uiSides = document.getElementById('sides');
+  const uiSpeed = document.getElementById('speed');
+  const msg = document.getElementById('msg');
+
+  const resetBtn = document.getElementById('reset');
+
+  let vertices = [];
+
+  // collision debounce so a single collision won't trigger multiple times
+  let collisionCooldown = 0;
+  const COOLDOWN_FRAMES = 10;
+
+  function computePolygon() {
+    vertices = [];
+    // regular polygon centered at (cx,cy)
+    for(let i=0;i<sides;i++){
+      const ang = (Math.PI*2*i)/sides - Math.PI/2; // start at top
+      const x = cx + polygonRadius * Math.cos(ang);
+      const y = cy + polygonRadius * Math.sin(ang);
+      vertices.push({x,y,ang});
+    }
+    // apothem = radius * cos(pi/n)
+    apothem = polygonRadius * Math.cos(Math.PI/sides);
+  }
+
+  function reset() {
+    sides = 3;
+    polygonRadius = Math.min(W,H)*0.33;
+    ball.x = cx; ball.y = cy; ball.r = 10;
+    const angle = Math.random()*Math.PI*2;
+    const baseSpeed = 2.0;
+    ball.vx = Math.cos(angle)*baseSpeed;
+    ball.vy = Math.sin(angle)*baseSpeed;
+    ball.speedMultiplier = 1.0;
+    collisionCooldown = 0;
+    computePolygon();
+    updateUI();
+  }
+
+  function updateUI(){
+    uiSides.textContent = sides;
+    uiSpeed.textContent = ball.speedMultiplier.toFixed(2);
+  }
+
+  function drawPolygon(){
+    ctx.save();
+    ctx.translate(0,0);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(96,165,250,0.9)';
+    ctx.fillStyle = 'rgba(8,20,36,0.35)';
+    ctx.beginPath();
+    vertices.forEach((v,i)=>{
+      if(i===0) ctx.moveTo(v.x,v.y); else ctx.lineTo(v.x,v.y);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBall(){
+    ctx.save();
+    // glow
+    ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r+8,0,Math.PI*2); ctx.fillStyle='rgba(96,165,250,0.06)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(96,165,250,0.98)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+  }
+
+  function reflectVelocity(vx, vy, nx, ny){
+    // n should be normalized
+    // v' = v - 2*(v·n)*n
+    const dot = vx*nx + vy*ny;
+    const rx = vx - 2*dot*nx;
+    const ry = vy - 2*dot*ny;
+    return {rx,ry};
+  }
+
+  function pointToSegmentDistance(px,py, x1,y1,x2,y2){
+    const lx = x2-x1, ly = y2-y1;
+    const l2 = lx*lx + ly*ly;
+    if(l2===0) return {d: Math.hypot(px-x1,py-y1), t:0};
+    let t = ((px-x1)*lx + (py-y1)*ly) / l2;
+    if(t<0) t=0; else if(t>1) t=1;
+    const projx = x1 + t*lx;
+    const projy = y1 + t*ly;
+    const d = Math.hypot(px-projx, py-projy);
+    return {d,t,projx,projy};
+  }
+
+  function simulate(){
+    // Move ball
+    ball.x += ball.vx * ball.speedMultiplier;
+    ball.y += ball.vy * ball.speedMultiplier;
+
+    // simple wall check to keep ball inside canvas bounds
+    if(ball.x - ball.r < 0){ ball.x = ball.r; ball.vx = Math.abs(ball.vx); }
+    if(ball.x + ball.r > W){ ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx); }
+    if(ball.y - ball.r < 0){ ball.y = ball.r; ball.vy = Math.abs(ball.vy); }
+    if(ball.y + ball.r > H){ ball.y = H - ball.r; ball.vy = -Math.abs(ball.vy); }
+
+    if(collisionCooldown>0) collisionCooldown--;
+
+    // Check collisions against polygon edges
+    for(let i=0;i<vertices.length;i++){
+      const a = vertices[i];
+      const b = vertices[(i+1)%vertices.length];
+      const seg = pointToSegmentDistance(ball.x, ball.y, a.x,a.y, b.x,b.y);
+      if(seg.d <= ball.r + 0.001){
+        // compute inward normal for the edge (pointing toward polygon center)
+        // edge vector
+        const ex = b.x - a.x, ey = b.y - a.y;
+        // normal (perp): (-ey, ex) and (ey, -ex) -> choose the one that points inward
+        let nx = -ey, ny = ex;
+        // normalize
+        const len = Math.hypot(nx,ny);
+        if(len===0) continue;
+        nx/=len; ny/=len;
+        // check which normal points toward center (cx,cy)
+        const toCenterX = cx - ( (a.x+b.x)/2 );
+        const toCenterY = cy - ( (a.y+b.y)/2 );
+        const dotCenter = toCenterX*nx + toCenterY*ny;
+        if(dotCenter < 0){ nx = -nx; ny = -ny; }
+
+        // check ball is moving towards the edge (v·n < 0) to avoid reacting when moving away
+        const vdotn = ball.vx*nx + ball.vy*ny;
+        if(vdotn < 0 && collisionCooldown===0){
+          // reflect
+          const {rx,ry} = reflectVelocity(ball.vx, ball.vy, nx, ny);
+          ball.vx = rx; ball.vy = ry;
+
+          // push ball out so it doesn't get stuck inside
+          const overlap = ball.r - seg.d + 0.5;
+          ball.x += nx * overlap;
+          ball.y += ny * overlap;
+
+          // collision event: increase sides and speed
+          sides += 1;
+          ball.speedMultiplier *= 1.12; // increase speed
+          // shrink polygon radius gently to keep polygon inside canvas if many sides are added
+          // but keep the apothem roughly similar so ball still collides
+          polygonRadius *= 0.995;
+
+          computePolygon();
+          updateUI();
+
+          // small message flash
+          flashMessage(`Collided with side ${i+1} — sides → ${sides}`);
+
+          collisionCooldown = COOLDOWN_FRAMES;
+
+          // break so a single frame doesn't process multiple edges
+          break;
+        }
+      }
+    }
+  }
+
+  let flashTimer = 0;
+  function flashMessage(t){
+    msg.textContent = t;
+    flashTimer = 60; // frames
+  }
+
+  function draw(){
+    // background
+    ctx.clearRect(0,0,W,H);
+    // subtle background gradient
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'rgba(8,13,23,0.8)');
+    g.addColorStop(1,'rgba(2,6,16,0.9)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+
+    drawPolygon();
+    drawBall();
+
+    // HUD
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = '13px Inter, Arial';
+    ctx.fillText(`Sides: ${sides}`, 12, 20);
+    ctx.fillText(`Speed x${ball.speedMultiplier.toFixed(2)}`, 12, 40);
+    ctx.restore();
+  }
+
+  function step(){
+    simulate();
+    draw();
+    if(flashTimer>0){ flashTimer--; if(flashTimer===0) msg.textContent = 'Ball starts at polygon center. Collide with a side to grow the polygon and speed up.' }
+    requestAnimationFrame(step);
+  }
+
+  // initialize
+  resetBtn.addEventListener('click', reset);
+
+  // Start with ball in center with a random direction
+  reset();
+
+  // Slight nudge so ball isn't perfectly centered speed-wise
+  ball.vx += 0.01; ball.vy += 0.01;
+  updateUI();
+  requestAnimationFrame(step);
+
+  // Allow clicking on canvas to give the ball a nudge
+  canvas.addEventListener('pointerdown', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    const dx = px - ball.x, dy = py - ball.y;
+    const d = Math.hypot(dx,dy) || 1;
+    ball.vx += dx/d * 1.6;
+    ball.vy += dy/d * 1.6;
+  });
+
+})();
+</script>
+</body>
+</html>

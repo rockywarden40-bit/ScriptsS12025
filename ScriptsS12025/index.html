@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chess Master Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(to bottom right, #0f172a, #1e293b);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: white;
+    }
+
+    .glow-title {
+      text-shadow: 0 0 10px #eab308, 0 0 20px #facc15, 0 0 40px #fcd34d;
+      animation: bounceGlow 2s infinite;
+    }
+
+    @keyframes bounceGlow {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-10px);
+      }
+    }
+
+    .option-card {
+      background-color: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      transition: transform 0.2s ease, background 0.3s ease;
+      cursor: pointer;
+    }
+
+    .option-card:hover {
+      transform: scale(1.05);
+      background-color: #334155;
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen px-4 py-8">
+  <h1 class="text-5xl font-bold glow-title mb-12 text-yellow-300">♚ Chess Master Hub</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
+    <a href="game.html" class="option-card">
+      <h2 class="text-2xl font-semibold mb-2">♟️ Play Chess Master</h2>
+      <p>Challenge the AI and master your game.</p>
+    </a>
+    <div class="option-card">
+      <h2 class="text-2xl font-semibold mb-2">🧪 Puzzle Mode</h2>
+      <p>Coming soon: solve chess puzzles to improve your tactics!</p>
+    </div>
+    <div class="option-card">
+      <h2 class="text-2xl font-semibold mb-2">🔍 Learn Chess</h2>
+      <p>Coming soon: tutorials for openings, endgames, and strategy.</p>
+    </div>
+    <div class="option-card">
+      <h2 class="text-2xl font-semibold mb-2">🎯 Practice Mode</h2>
+      <p>Coming soon: train with different difficulty levels.</p>
+    </div>
+  </div>
+</body>
+</html>

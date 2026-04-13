@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Rotating Octahedron with Physics Balls</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    html, body { height: 100%; margin: 0; background: radial-gradient(#0a0a12, #050508); }
+    #overlay {
+      position: fixed; inset: 0; pointer-events: none; color: #cfd8dc; font-family: system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      display: flex; align-items: center; justify-content: center; text-align: center;
+    }
+    #overlay .panel {
+      background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+      padding: 10px 14px; font-size: 12px; letter-spacing: 0.2px;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <div class="panel">
+      Rotating octahedron. Three balls move with simple physics: gravity, collisions, and friction.
+    </div>
+  </div>
+
+  <!-- Three.js from CDN -->
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0d12);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 100);
+    camera.position.set(0.9, 0.9, 2.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // Lights
+    const hemi = new THREE.HemisphereLight(0x88aaff, 0x101020, 0.9);
+    scene.add(hemi);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    keyLight.position.set(2, 2, 3);
+    scene.add(keyLight);
+
+    const rimLight = new THREE.PointLight(0x66aaff, 0.6);
+    rimLight.position.set(-2.5, 1.5, -2.0);
+    scene.add(rimLight);
+
+    // Octahedron (container)
+    const R = 1.0; // "radius" (|x|+|y|+|z| <= R defines interior)
+    const octGeom = new THREE.OctahedronGeometry(R, 0);
+    // Wireframe so we can see balls inside
+    const octWire = new THREE.LineSegments(new THREE.EdgesGeometry(octGeom), new THREE.LineBasicMaterial({ color: 0x7fb3ff, linewidth: 1 }));
+    const octGroup = new THREE.Group();
+    octGroup.add(octWire);
+
+    // Add subtle translucent faces to help depth perception
+    const facesMat = new THREE.MeshPhongMaterial({
+      color: 0x264b7f,
+      transparent: true,
+      opacity: 0.08,
+      shininess: 40,
+      side: THREE.DoubleSide
+    });
+    const octMesh = new THREE.Mesh(octGeom, facesMat);
+    octGroup.add(octMesh);
+
+    scene.add(octGroup);
+
+    // Floor grid for reference (subtle)
+    const grid = new THREE.GridHelper(10, 20, 0x224, 0x112);
+    grid.position.y = -1.6;
+    grid.material.opacity = 0.08;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    // Balls
+    const BALL_COUNT = 3;
+    const balls = [];
+    const rBall = 0.12; // radius of each ball
+
+    const ballGeom = new THREE.SphereGeometry(rBall, 32, 20);
+    const ballMaterials = [
+      new THREE.MeshPhysicalMaterial({ color: 0xff6f61, roughness: 0.35, metalness: 0.15, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
+      new THREE.MeshPhysicalMaterial({ color: 0x4dd0e1, roughness: 0.25, metalness: 0.2, clearcoat: 0.7, clearcoatRoughness: 0.25 }),
+      new THREE.MeshPhysicalMaterial({ color: 0xffd54f, roughness: 0.3, metalness: 0.1, clearcoat: 0.5, clearcoatRoughness: 0.3 })
+    ];
+
+    // Physics params
+    const gravity = new THREE.Vector3(0, -0.9, 0); // mild gravity
+    const linearDamping = 0.003; // air resistance
+    const bounce = 0.82; // restitution on wall
+    const frictionWall = 0.02; // tangential friction on wall collision
+    const collideBounce = 0.85; // restitution for ball-ball
+    const collideFriction = 0.02;
+
+    // Utility: random in octahedron (approx by rejection sampling)
+    function randomPointInOctahedron(margin) {
+      // Try points until |x|+|y|+|z| <= R - margin
+      for (;;) {
+        const x = (Math.random() * 2 - 1) * (R - margin);
+        const y = (Math.random() * 2 - 1) * (R - margin);
+        const z = (Math.random() * 2 - 1) * (R - margin);
+        if (Math.abs(x) + Math.abs(y) + Math.abs(z) <= (R - margin)) return new THREE.Vector3(x, y, z);
+      }
+    }
+
+    // Create balls with random positions and velocities
+    for (let i = 0; i < BALL_COUNT; i++) {
+      const mesh = new THREE.Mesh(ballGeom, ballMaterials[i % ballMaterials.length]);
+      const margin = rBall + 0.02;
+      const p = randomPointInOctahedron(margin);
+      const v = new THREE.Vector3(
+        (Math.random() - 0.5) * 0.8,
+        (Math.random() - 0.5) * 0.8,
+        (Math.random() - 0.5) * 0.8
+      );
+
+      mesh.position.copy(p);
+      scene.add(mesh);
+      balls.push({ mesh, p, v });
+    }
+
+    // Collision with octahedron planes: |x| + |y| + |z| <= R - r
+    // When crossing boundary, reflect velocity about the hit face normal and separate out of the face.
+    function resolveWallCollision(ball) {
+      const p = ball.p;
+      const v = ball.v;
+      const limit = R - rBall;
+
+      const s = Math.abs(p.x) + Math.abs(p.y) + Math.abs(p.z);
+
+      if (s <= limit) return;
+
+      // Determine which face normal applies: normal is sign(x,y,z) normalized of (±1, ±1, ±1)
+      const nx = p.x === 0 ? 0 : Math.sign(p.x);
+      const ny = p.y === 0 ? 0 : Math.sign(p.y);
+      const nz = p.z === 0 ? 0 : Math.sign(p.z);
+
+      // Face normal of octahedron is vector of signs, normalized
+      const n = new THREE.Vector3(nx, ny, nz).normalize();
+
+      // Push position back to the surface along normal
+      const overlap = s - limit;
+      // Distance to move along normal so that |x|+|y|+|z| == limit.
+      // A small step along normal reduces the sum approximately by overlap (since normal components are equalized).
+      const correction = overlap; // approximation works well for small penetration
+      p.addScaledVector(n, -correction * 0.7); // slightly conservative correction to avoid jitter
+
+      // Reflect velocity
+      const vn = n.dot(v);
+      const vt = v.clone().addScaledVector(n, -vn); // tangential component
+      const vr = vt.addScaledVector(n, -vn * bounce); // reflect normal with restitution
+
+      // Apply wall friction to tangential component
+      v.copy(vr);
+      v.addScaledVector(vt, -frictionWall);
+
+      // Minor stabilization
+      const maxSpeed = 4.0;
+      const speed = v.length();
+      if (speed > maxSpeed) v.multiplyScalar(maxSpeed / speed);
+    }
+
+    // Ball-ball collision resolution (elastic-ish with friction)
+    function resolveBallBallCollision(a, b) {
+      const pa = a.p, pb = b.p;
+      const va = a.v, vb = b.v;
+      const delta = pb.clone().sub(pa);
+      const dist = delta.length();
+      const minDist = 2 * rBall;
+      if (dist === 0 || dist >= minDist) return;
+
+      const n = delta.multiplyScalar(1 / (dist || 1e-6));
+
+      // Separate overlapping positions
+      const overlap = minDist - dist;
+      const correction = n.clone().multiplyScalar(overlap * 0.5);
+      pa.add(correction.multiplyScalar(-1));
+      pb.add(correction);
+
+      // Relative velocity along normal
+      const rv = vb.clone().sub(va);
+      const vn = rv.dot(n);
+
+      // If approaching, apply impulse
+      if (vn < 0) {
+        const impulse = -(1 + collideBounce) * vn * 0.5; // equal mass
+        const jn = n.clone().multiplyScalar(impulse);
+        va.add(jn);
+        vb.add(n.clone().multiplyScalar(-impulse));
+
+        // Tangential friction to reduce spin/slide
+        const vt = rv.clone().addScaledVector(n, -vn);
+        va.add(vt.clone().multiplyScalar(collideFriction));
+        vb.add(vt.clone().multiplyScalar(-collideFriction));
+      }
+    }
+
+    // Animation loop with simple physics integrator
+    let last = performance.now();
+    function tick(now) {
+      const dt = Math.min((now - last) / 1000, 0.033); // cap dt
+      last = now;
+
+      // Rotate octahedron for visual effect (physics frame stays in world)
+      octGroup.rotation.x += 0.25 * dt;
+      octGroup.rotation.y += 0.38 * dt;
+
+      // Integrate motion
+      for (const b of balls) {
+        // Gravity
+        b.v.addScaledVector(gravity, dt);
+        // Damping
+        b.v.multiplyScalar(1 - linearDamping);
+        // Integrate position
+        b.p.addScaledVector(b.v, dt);
+        // Wall collisions
+        resolveWallCollision(b);
+      }
+
+      // Ball-ball collisions
+      for (let i = 0; i < balls.length; i++) {
+        for (let j = i + 1; j < balls.length; j++) {
+          resolveBallBallCollision(balls[i], balls[j]);
+        }
+      }
+
+      // Apply positions to meshes
+      for (const b of balls) {
+        b.mesh.position.copy(b.p);
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Gentle camera auto-orbit effect
+    let t = 0;
+    function orbitCamera(now) {
+      t = now * 0.00007;
+      camera.position.x = Math.cos(t) * 2.6;
+      camera.position.z = Math.sin(t) * 2.6;
+      camera.lookAt(0, 0, 0);
+      requestAnimationFrame(orbitCamera);
+    }
+    requestAnimationFrame(orbitCamera);
+  </script>
+</body>
+</html>

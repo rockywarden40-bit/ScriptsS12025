@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Planetary Collision & Ring Formation</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000000; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add a light source
+        const ambientLight = new THREE.AmbientLight(0x404040, 5); // soft white light
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+
+        camera.position.z = 10;
+
+        // --- PLANET SETUP ---
+        const PLANET_RADIUS = 1.5;
+        const planetMaterial1 = new THREE.MeshPhongMaterial({ color: 0x0077ff, emissive: 0x002244 });
+        const planetMaterial2 = new THREE.MeshPhongMaterial({ color: 0xff4400, emissive: 0x442200 });
+        const geometry = new THREE.SphereGeometry(PLANET_RADIUS, 32, 32);
+
+        const planet1 = new THREE.Mesh(geometry, planetMaterial1);
+        const planet2 = new THREE.Mesh(geometry, planetMaterial2);
+
+        // Initial positions for collision
+        planet1.position.x = -2.5;
+        planet2.position.x = 2.5;
+
+        scene.add(planet1);
+        scene.add(planet2);
+
+        // --- COLLISION/MERGED PLANET PLACEHOLDER ---
+        const mergedPlanetGeometry = new THREE.SphereGeometry(PLANET_RADIUS * 1.5, 32, 32); // Larger merged body
+        const mergedPlanetMaterial = new THREE.MeshPhongMaterial({ color: 0x888888, emissive: 0x222222 });
+        const mergedPlanet = new THREE.Mesh(mergedPlanetGeometry, mergedPlanetMaterial);
+        mergedPlanet.visible = false; // Start hidden
+        scene.add(mergedPlanet);
+
+        // --- DUST/PARTICLE SETUP ---
+        const particleCount = 10000;
+        const particlesGeometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+
+        for (let i = 0; i < particleCount; i++) {
+            // Initial position around the merge point (0, 0, 0)
+            const x = (Math.random() - 0.5) * 10;
+            const y = (Math.random() - 0.5) * 10;
+            const z = (Math.random() - 0.5) * 10;
+
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = z;
+
+            sizes[i] = Math.random() * 0.1; // Small random size
+        }
+
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particlesGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+        const particleMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.05,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+        });
+
+        const particleSystem = new THREE.Points(particlesGeometry, particleMaterial);
+        particleSystem.visible = false; // Start hidden
+        scene.add(particleSystem);
+
+
+        // --- ANIMATION STATE ---
+        const COLLISION_TIME = 2.0; // Seconds until collision
+        const RING_FORM_TIME = 10.0; // Seconds until ring is fully formed
+        let timeElapsed = 0;
+        let animationStage = 'APPROACH'; // APPROACH -> COLLISION -> RING_FORM
+
+        // --- ANIMATION LOOP ---
+        function animate(timestamp) {
+            requestAnimationFrame(animate);
+
+            const deltaTime = timestamp / 1000 - timeElapsed;
+            timeElapsed = timestamp / 1000;
+
+            // Rotation for visual effect
+            if (planet1.visible) planet1.rotation.y += 0.005;
+            if (planet2.visible) planet2.rotation.y -= 0.005;
+            if (mergedPlanet.visible) mergedPlanet.rotation.y += 0.003;
+            if (particleSystem.visible) particleSystem.rotation.y += 0.001;
+
+            // --- STAGE LOGIC ---
+
+            if (animationStage === 'APPROACH') {
+                // Move planets towards each other
+                const collisionFactor = Math.min(1, timeElapsed / COLLISION_TIME);
+                planet1.position.x = THREE.MathUtils.lerp(-2.5, 0, collisionFactor);
+                planet2.position.x = THREE.MathUtils.lerp(2.5, 0, collisionFactor);
+
+                if (collisionFactor >= 1) {
+                    // Collision occurs
+                    animationStage = 'COLLISION';
+                    planet1.visible = false;
+                    planet2.visible = false;
+                    mergedPlanet.visible = true;
+                    particleSystem.visible = true;
+                }
+
+            } else if (animationStage === 'COLLISION') {
+                // Visual explosion and transition to ring formation
+                particleSystem.material.opacity = Math.min(0.8, (timeElapsed - COLLISION_TIME) * 0.5);
+
+                if (timeElapsed >= COLLISION_TIME + 1) {
+                    animationStage = 'RING_FORM';
+                }
+
+            } else if (animationStage === 'RING_FORM') {
+                const ringFactor = Math.min(1, (timeElapsed - COLLISION_TIME - 1) / (RING_FORM_TIME - COLLISION_TIME - 1));
+
+                // Get particle attributes
+                const positions = particleSystem.geometry.attributes.position.array;
+                const particleCount = positions.length / 3;
+                const ringRadiusMin = PLANET_RADIUS * 1.8;
+                const ringRadiusMax = PLANET_RADIUS * 3.5;
+                const ringThickness = 0.5;
+
+                for (let i = 0; i < particleCount; i++) {
+                    const i3 = i * 3;
+                    let x = positions[i3];
+                    let y = positions[i3 + 1];
+                    let z = positions[i3 + 2];
+
+                    // Convert to polar/cylindrical coordinates for the ring
+                    const radius = Math.sqrt(x * x + z * z);
+                    const angle = Math.atan2(z, x);
+                    const initialRadius = Math.random() * (ringRadiusMax - ringRadiusMin) + ringRadiusMin;
+                    const initialY = (Math.random() - 0.5) * ringThickness; // initial vertical position
+
+                    // Lerp (Linear Interpolation) the particle towards its final ring position
+                    const targetX = initialRadius * Math.cos(angle);
+                    const targetZ = initialRadius * Math.sin(angle);
+                    const targetY = initialY;
+
+                    positions[i3] = THREE.MathUtils.lerp(x, targetX, ringFactor * 0.02); // Small steps for smooth movement
+                    positions[i3 + 1] = THREE.MathUtils.lerp(y, targetY, ringFactor * 0.02);
+                    positions[i3 + 2] = THREE.MathUtils.lerp(z, targetZ, ringFactor * 0.02);
+
+                    // Add a slight rotational velocity to aid the ring formation visualization
+                    const rotationSpeed = 0.01;
+                    const tempX = positions[i3];
+                    const tempZ = positions[i3 + 2];
+                    positions[i3] = tempX * Math.cos(rotationSpeed * deltaTime) - tempZ * Math.sin(rotationSpeed * deltaTime);
+                    positions[i3 + 2] = tempX * Math.sin(rotationSpeed * deltaTime) + tempZ * Math.cos(rotationSpeed * deltaTime);
+                }
+
+                // Update the positions buffer
+                particleSystem.geometry.attributes.position.needsUpdate = true;
+            }
+
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start the animation
+        animate(0);
+    </script>
+</body>
+</html>

@@ -1,0 +1,569 @@
+import React, { useState, useEffect, useRef } from "react";
+
+// VersatileWebsite.jsx
+// Single-file React app (Tailwind-first styling) that demonstrates a wide
+// variety of website features in a modular way so you can extend it to any
+// large scale (10k+ lines) by adding more components, pages, and data.
+
+// NOTE: This file is intentionally self-contained and uses no external
+// libraries except React and Tailwind CSS classes for styling. When you
+// integrate it in a real project, add routing, state management, and a
+// build pipeline as needed.
+
+// ---------- Utilities ----------
+const useLocalTheme = () => {
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("vv-theme") || "light";
+    } catch (e) {
+      return "light";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("vv-theme", theme);
+    } catch (e) {}
+  }, [theme]);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+  return [theme, setTheme];
+};
+
+// Tiny in-memory "fake" API to mimic server delays and paginated data
+const fakeApi = {
+  fetchProducts: (page = 1, pageSize = 6) =>
+    new Promise((res) =>
+      setTimeout(() => {
+        const items = Array.from({ length: pageSize }, (_, i) => {
+          const id = (page - 1) * pageSize + i + 1;
+          return {
+            id,
+            name: `Product ${id}`,
+            description: `This is the short description of product ${id}. Great for demo.`,
+            price: (10 + id).toFixed(2),
+            img: `https://picsum.photos/seed/product${id}/600/400`,
+          };
+        });
+        res({ items, total: 100 });
+      }, 450)
+    ),
+
+  fetchPosts: (page = 1, pageSize = 5) =>
+    new Promise((res) =>
+      setTimeout(() => {
+        const items = Array.from({ length: pageSize }, (_, i) => {
+          const id = (page - 1) * pageSize + i + 1;
+          return {
+            id,
+            title: `Post Title ${id}`,
+            excerpt: `A short excerpt for post ${id}. Use this section for teasers.`,
+            date: new Date(Date.now() - id * 86400000).toISOString(),
+          };
+        });
+        res({ items, total: 50 });
+      }, 400)
+    ),
+};
+
+// ---------- Tiny Components ----------
+const Icon = ({ name, className = "h-5 w-5" }) => {
+  // Minimal icon switch — extend as required
+  switch (name) {
+    case "menu":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      );
+    case "sun":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 3v2M12 19v2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4l1.4-1.4M17 7l1.4-1.4" />
+          <circle cx="12" cy="12" r="3" strokeWidth="2" />
+        </svg>
+      );
+    case "moon":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+        </svg>
+      );
+    case "cart":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 6h14" />
+        </svg>
+      );
+    default:
+      return <span className={className} />;
+  }
+};
+
+// ---------- Navigation & Layout ----------
+function Navbar({ onNavigate, current, theme, setTheme, openMobile }) {
+  return (
+    <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center gap-4">
+            <button onClick={() => onNavigate("home")} className="text-lg font-bold">
+              Versatile<span className="text-indigo-600">Hub</span>
+            </button>
+            <nav className="hidden md:flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200">
+              {[
+                ["home", "Home"],
+                ["dashboard", "Dashboard"],
+                ["shop", "Shop"],
+                ["blog", "Blog"],
+                ["gallery", "Gallery"],
+                ["contact", "Contact"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => onNavigate(key)}
+                  className={`px-3 py-2 rounded-md ${current === key ? "bg-indigo-50 dark:bg-indigo-700/20" : "hover:bg-slate-100 dark:hover:bg-slate-800"}`}>
+                  {label}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2">
+              <button
+                onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+                className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
+                {theme === "light" ? <Icon name="moon" /> : <Icon name="sun" />}
+              </button>
+
+              <button onClick={() => onNavigate("cart")} className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
+                <Icon name="cart" />
+              </button>
+
+              <button className="px-3 py-2 bg-indigo-600 text-white rounded-md" onClick={() => onNavigate("signup")}>
+                Sign up
+              </button>
+            </div>
+
+            <div className="md:hidden">
+              <button onClick={openMobile} className="p-2 rounded-md">
+                <Icon name="menu" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function MobileMenu({ visible, onNavigate, onClose }) {
+  return (
+    <div className={`${visible ? "block" : "hidden"} md:hidden absolute inset-x-0 top-16 bg-white dark:bg-slate-900/95 shadow-lg`}>
+      <div className="px-4 py-4 space-y-2">
+        {[
+          ["home", "Home"],
+          ["dashboard", "Dashboard"],
+          ["shop", "Shop"],
+          ["blog", "Blog"],
+          ["gallery", "Gallery"],
+          ["contact", "Contact"],
+        ].map(([key, label]) => (
+          <button key={key} onClick={() => { onNavigate(key); onClose(); }} className="w-full text-left px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Hero / Marketing ----------
+function Hero({ onExplore }) {
+  return (
+    <section className="py-20 bg-gradient-to-b from-indigo-50 to-white dark:from-slate-900 dark:to-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          Build any experience — marketing, shop, dashboard, and more.
+        </h1>
+        <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
+          This single-file demo contains many components you can reuse. It's responsive, theme-aware,and ready to extend.
+        </p>
+
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <button onClick={() => onExplore("shop")} className="px-6 py-3 bg-indigo-600 text-white rounded-md shadow">Explore Shop</button>
+          <button onClick={() => onExplore("dashboard")} className="px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-md">Open Dashboard</button>
+        </div>
+
+        <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <FeatureCard title="Customizable UI" body="Variants, theme, and layout options" />
+          <FeatureCard title="Shop & Cart" body="List products, add to cart, checkout stubs" />
+          <FeatureCard title="Blog CMS" body="Posts, excerpts, pagination" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FeatureCard({ title, body }) {
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
+      <h3 className="font-semibold text-lg">{title}</h3>
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{body}</p>
+    </div>
+  );
+}
+
+// ---------- Dashboard (mini) ----------
+function SimpleDashboard() {
+  const stats = [
+    ["Visitors", "12.4k"],
+    ["Sales", "1.2k"],
+    ["Revenue", "₹48.2k"],
+    ["Tasks", "24"],
+  ];
+  return (
+    <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow">
+      <h2 className="text-xl font-semibold">Dashboard</h2>
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-4">
+        {stats.map(([k, v]) => (
+          <div key={k} className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
+            <div className="text-sm text-slate-600 dark:text-slate-300">{k}</div>
+            <div className="mt-2 text-2xl font-bold">{v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="col-span-2 p-4 bg-white dark:bg-slate-700 rounded-lg">Chart placeholder (add chart library)</div>
+        <div className="p-4 bg-white dark:bg-slate-700 rounded-lg">Activity feed</div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Shop / Cart ----------
+function Shop({ onAdd }) {
+  const [page, setPage] = useState(1);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    setLoading(true);
+    fakeApi.fetchProducts(page, 6).then((res) => {
+      setProducts(res.items);
+      setTotal(res.total);
+      setLoading(false);
+    });
+  }, [page]);
+
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-semibold mb-4">Shop</h2>
+      {loading ? (
+        <div>Loading products...</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {products.map((p) => (
+            <div key={p.id} className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
+              <img src={p.img} alt={p.name} className="w-full h-40 object-cover" />
+              <div className="p-4">
+                <h3 className="font-semibold">{p.name}</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">{p.description}</p>
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="font-bold">₹{p.price}</div>
+                  <button onClick={() => onAdd(p)} className="px-3 py-1 bg-indigo-600 text-white rounded">Add</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-6 flex items-center justify-between">
+        <div className="text-sm text-slate-600">Showing page {page}</div>
+        <div className="space-x-2">
+          <button onClick={() => setPage((p) => Math.max(1, p - 1))} className="px-3 py-1 border rounded">Prev</button>
+          <button onClick={() => setPage((p) => p + 1)} className="px-3 py-1 border rounded">Next</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Cart({ items, onRemove }) {
+  const total = items.reduce((s, i) => s + parseFloat(i.price || 0), 0);
+  return (
+    <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow">
+      <h2 className="text-xl font-semibold">Cart</h2>
+      {items.length === 0 ? (
+        <div className="mt-4 text-sm text-slate-600">Your cart is empty</div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {items.map((it, idx) => (
+            <div key={idx} className="flex items-center justify-between p-3 rounded bg-indigo-50 dark:bg-indigo-900/20">
+              <div>
+                <div className="font-semibold">{it.name}</div>
+                <div className="text-sm text-slate-600">₹{it.price}</div>
+              </div>
+              <button onClick={() => onRemove(idx)} className="px-3 py-1 border rounded">Remove</button>
+            </div>
+          ))}
+          <div className="mt-2 font-bold">Total: ₹{total.toFixed(2)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Blog ----------
+function Blog() {
+  const [page, setPage] = useState(1);
+  const [posts, setPosts] = useState([]);
+  const [total, setTotal] = useState(0);
+  useEffect(() => {
+    fakeApi.fetchPosts(page, 5).then((res) => {
+      setPosts(res.items);
+      setTotal(res.total);
+    });
+  }, [page]);
+
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-semibold mb-4">Blog</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {posts.map((p) => (
+          <article key={p.id} className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow">
+            <h3 className="font-bold">{p.title}</h3>
+            <p className="text-sm mt-2 text-slate-600 dark:text-slate-300">{p.excerpt}</p>
+            <div className="mt-3 text-xs text-slate-500">{new Date(p.date).toLocaleDateString()}</div>
+          </article>
+        ))}
+      </div>
+      <div className="mt-4 flex justify-between">
+        <button onClick={() => setPage((p) => Math.max(1, p - 1))} className="px-3 py-1 border rounded">Prev</button>
+        <div className="text-sm text-slate-600">Page {page}</div>
+        <button onClick={() => setPage((p) => p + 1)} className="px-3 py-1 border rounded">Next</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Gallery ----------
+function Gallery() {
+  const images = Array.from({ length: 12 }, (_, i) => `https://picsum.photos/seed/gallery${i}/800/600`);
+  return (
+    <div className="p-6">
+      <h2 className="text-2xl font-semibold mb-4">Gallery</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {images.map((src, i) => (
+          <div key={i} className="overflow-hidden rounded-lg bg-white dark:bg-slate-800 shadow">
+            <img src={src} alt={`gallery-${i}`} className="w-full h-40 object-cover transform hover:scale-105 transition" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Contact ----------
+function ContactForm() {
+  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [sent, setSent] = useState(false);
+  function submit(e) {
+    e.preventDefault();
+    setSent(true);
+    setTimeout(() => setSent(false), 1800);
+  }
+  return (
+    <div className="p-6 max-w-2xl bg-white dark:bg-slate-800 rounded-lg shadow">
+      <h2 className="text-xl font-semibold">Contact Us</h2>
+      {sent ? (
+        <div className="mt-4 text-green-600">Thanks — your message was sent (demo only).</div>
+      ) : (
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <input className="w-full p-2 border rounded" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="w-full p-2 border rounded" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <textarea className="w-full p-2 border rounded" placeholder="Message" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} />
+          <div className="flex justify-end">
+            <button className="px-4 py-2 bg-indigo-600 text-white rounded">Send</button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+// ---------- Settings Panel ----------
+function Settings({ theme, setTheme }) {
+  const [compact, setCompact] = useState(false);
+  return (
+    <div className="p-6 bg-white dark:bg-slate-800 rounded-lg shadow">
+      <h3 className="font-semibold text-lg">Settings</h3>
+      <div className="mt-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm">Theme</div>
+            <div className="text-xs text-slate-500">Switch between light/dark</div>
+          </div>
+          <div>
+            <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} className="px-3 py-1 border rounded">
+              Toggle
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm">Compact mode</div>
+            <div className="text-xs text-slate-500">Reduce paddings/content density</div>
+          </div>
+          <div>
+            <input type="checkbox" checked={compact} onChange={(e) => setCompact(e.target.checked)} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Signup / Auth (Demo) ----------
+function Auth() {
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({ email: "", pass: "" });
+  const submit = (e) => {
+    e.preventDefault();
+    alert(`${mode} (demo): ${form.email}`);
+  };
+  return (
+    <div className="p-6 max-w-md bg-white dark:bg-slate-800 rounded-lg shadow">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">{mode === "login" ? "Login" : "Sign up"}</h2>
+        <div className="text-sm text-slate-500 cursor-pointer" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
+          {mode === "login" ? "Create account" : "Have an account?"}
+        </div>
+      </div>
+      <form onSubmit={submit} className="mt-4 space-y-3">
+        <input className="w-full p-2 border rounded" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <input className="w-full p-2 border rounded" placeholder="Password" type="password" value={form.pass} onChange={(e) => setForm({ ...form, pass: e.target.value })} />
+        <div className="flex justify-end">
+          <button className="px-4 py-2 bg-indigo-600 text-white rounded">{mode === "login" ? "Login" : "Sign up"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ---------- Utility UI: Floating Chat Widget ----------
+function ChatWidget() {
+  const [open, setOpen] = useState(false);
+  const [msgs, setMsgs] = useState([{ from: "bot", text: "Hi! How can I help? (demo)" }]);
+  const [inp, setInp] = useState("");
+  function send() {
+    if (!inp.trim()) return;
+    setMsgs((m) => [...m, { from: "you", text: inp }]);
+    setInp("");
+    setTimeout(() => setMsgs((m) => [...m, { from: "bot", text: "Echo: " + inp }]), 700);
+  }
+  return (
+    <div className="fixed bottom-6 right-6 z-50">
+      <div className={`w-80 ${open ? "h-96" : "h-12"} bg-white dark:bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col`}>
+        <div className="p-2 border-b dark:border-slate-700 flex items-center justify-between">
+          <div className="font-semibold">Support</div>
+          <div className="flex items-center gap-2">
+            <button className="text-sm px-2" onClick={() => setOpen((o) => !o)}>{open ? "Close" : "Open"}</button>
+          </div>
+        </div>
+        {open && (
+          <div className="flex-1 p-2 flex flex-col">
+            <div className="flex-1 overflow-auto space-y-2">
+              {msgs.map((m, i) => (
+                <div key={i} className={`p-2 rounded ${m.from === "bot" ? "bg-slate-100 dark:bg-slate-700 self-start" : "bg-indigo-600 text-white self-end"}`}>
+                  {m.text}
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input value={inp} onChange={(e) => setInp(e.target.value)} className="flex-1 p-2 border rounded" placeholder="Type a message" />
+              <button onClick={send} className="px-3 py-2 bg-indigo-600 text-white rounded">Send</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- App (root) ----------
+export default function VersatileWebsite() {
+  const [theme, setTheme] = useLocalTheme();
+  const [route, setRoute] = useState("home");
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [cartItems, setCartItems] = useState([]);
+
+  function addToCart(p) {
+    setCartItems((c) => [...c, p]);
+  }
+  function removeFromCart(idx) {
+    setCartItems((c) => c.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+      <Navbar onNavigate={setRoute} current={route} theme={theme} setTheme={setTheme} openMobile={() => setMobileOpen((s) => !s)} />
+      <MobileMenu visible={mobileOpen} onNavigate={setRoute} onClose={() => setMobileOpen(false)} />
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {route === "home" && (
+          <>
+            <Hero onExplore={setRoute} />
+            <section className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="col-span-2">
+                <SimpleDashboard />
+                <div className="mt-6">
+                  <Blog />
+                </div>
+              </div>
+              <aside className="space-y-4">
+                <Settings theme={theme} setTheme={setTheme} />
+                <ContactForm />
+              </aside>
+            </section>
+          </>
+        )}
+
+        {route === "dashboard" && (
+          <div>
+            <h1 className="text-3xl font-bold mb-4">Admin Dashboard</h1>
+            <SimpleDashboard />
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <div className="p-4 bg-white dark:bg-slate-800 rounded shadow">Charts / Analytics area</div>
+              </div>
+              <div>
+                <div className="p-4 bg-white dark:bg-slate-800 rounded shadow">Recent users / tasks</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {route === "shop" && <Shop onAdd={addToCart} />}
+        {route === "cart" && <Cart items={cartItems} onRemove={removeFromCart} />}
+        {route === "blog" && <Blog />}
+        {route === "gallery" && <Gallery />}
+        {route === "contact" && <ContactForm />}
+        {route === "signup" && <Auth />}
+      </main>
+
+      <footer className="mt-12 border-t dark:border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-sm">© {new Date().getFullYear()} VersatileHub — Demo. Built with ❤️</div>
+          <div className="text-sm text-slate-500">Made to expand: marketing, e-commerce, dashboard, docs, and more.</div>
+        </div>
+      </footer>
+
+      <ChatWidget />
+    </div>
+  );
+}

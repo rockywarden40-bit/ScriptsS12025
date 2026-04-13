@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chess Master - Main Menu</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: url("A_pixel_art_digital_illustration_captures_a_sunset.png") no-repeat center center fixed;
+      background-size: cover;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .menu-container {
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 40px;
+      border-radius: 20px;
+      text-align: center;
+      box-shadow: 0 0 25px rgba(255, 255, 255, 0.2);
+    }
+
+    h1 {
+      font-size: 3em;
+      color: #fff;
+      animation: bounceGlow 2s infinite;
+      text-shadow: 0 0 10px #fff, 0 0 20px #ff00ff, 0 0 30px #00ffff;
+    }
+
+    @keyframes bounceGlow {
+      0%, 100% {
+        transform: scale(1);
+        text-shadow: 0 0 10px #fff, 0 0 20px #ff00ff, 0 0 30px #00ffff;
+      }
+      50% {
+        transform: scale(1.05);
+        text-shadow: 0 0 20px #fff, 0 0 30px #ff00ff, 0 0 40px #00ffff;
+      }
+    }
+
+    .menu-button {
+      display: block;
+      width: 250px;
+      margin: 15px auto;
+      padding: 15px 20px;
+      font-size: 1.2em;
+      color: white;
+      background: linear-gradient(45deg, #6a11cb, #2575fc);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      text-decoration: none;
+    }
+
+    .menu-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px #00ffff, 0 0 20px #ff00ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="menu-container">
+    <h1>Chess Master</h1>
+    <a href="chess.html" class="menu-button">Play Chess Master</a>
+    <a href="#" class="menu-button">Puzzles (Coming Soon)</a>
+    <a href="#" class="menu-button">Stats (Coming Soon)</a>
+    <a href="#" class="menu-button">Settings (Coming Soon)</a>
+  </div>
+</body>
+</html>

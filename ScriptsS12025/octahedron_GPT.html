@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Rotating Octahedron with Physics Balls — Single File</title>
+<style>
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#0b1020 0%, #10213a 60%);color:#fff;font-family:system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+  canvas{background:transparent;display:block;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+  .hud{font-size:13px;opacity:0.9}
+  a.small{color:#9fe9ff}
+  .controls{display:flex;gap:8px;align-items:center}
+  button{background:#0f1724;border:1px solid rgba(255,255,255,0.06);color:#d6f9ff;padding:6px 10px;border-radius:8px;cursor:pointer}
+  input[type=range]{width:200px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="c" width="980" height="640"></canvas>
+  <div class="hud">
+    <div class="controls">
+      <label>Rotation speed <input id="speed" type="range" min="0" max="3" step="0.01" value="0.9"></label>
+      <label>Gravity <input id="grav" type="range" min="0" max="30" step="0.1" value="9.8"></label>
+      <button id="reset">Reset Balls</button>
+      <span style="margin-left:10px">Tip: drag canvas to change view angle</span>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+ Rotating octahedron with three physics balls inside.
+ - Pure JS, canvas 2D.
+ - Basic 3D engine: rotation matrices, perspective projection.
+ - Collisions with moving polygonal faces: compute plane velocity from angular velocity: v_plane = ω × r
+ - Reflect ball velocity with restitution, separate penetration.
+*/
+
+// ---------- Utilities ----------
+const TAU = Math.PI*2;
+function vec3(x=0,y=0,z=0){ return {x,y,z}; }
+function add(a,b){ return {x:a.x+b.x,y:a.y+b.y,z:a.z+b.z}; }
+function sub(a,b){ return {x:a.x-b.x,y:a.y-b.y,z:a.z-b.z}; }
+function mul(a,s){ return {x:a.x*s,y:a.y*s,z:a.z*s}; }
+function dot(a,b){ return a.x*b.x + a.y*b.y + a.z*b.z; }
+function cross(a,b){ return {x: a.y*b.z - a.z*b.y, y: a.z*b.x - a.x*b.z, z: a.x*b.y - a.y*b.x}; }
+function length(v){ return Math.sqrt(v.x*v.x+v.y*v.y+v.z*v.z); }
+function normalize(v){ let L = length(v)||1; return {x:v.x/L,y:v.y/L,z:v.z/L}; }
+function rotateVecByMatrix(v, m){ // m is 3x3 array
+  return {
+    x: v.x*m[0][0] + v.y*m[0][1] + v.z*m[0][2],
+    y: v.x*m[1][0] + v.y*m[1][1] + v.z*m[1][2],
+    z: v.x*m[2][0] + v.y*m[2][1] + v.z*m[2][2],
+  };
+}
+function makeRotationMatrix(ax,ay,az){
+  // Euler XYZ
+  const cx=Math.cos(ax), sx=Math.sin(ax);
+  const cy=Math.cos(ay), sy=Math.sin(ay);
+  const cz=Math.cos(az), sz=Math.sin(az);
+  // Rx * Ry * Rz
+  const m = [
+    [cy*cz, -cy*sz, sy],
+    [sx*sy*cz+cx*sz, -sx*sy*sz+cx*cz, -sx*cy],
+    [-cx*sy*cz+sx*sz, cx*sy*sz+sx*cz, cx*cy]
+  ];
+  return m;
+}
+
+// ---------- 3D scene setup ----------
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+let cam = {z:4.0, fov: 700, panX:0, panY:0, drag:false, lastX:0, lastY:0};
+
+// octahedron in local space (unit size) vertices
+const V = [
+  vec3( 1,0,0),
+  vec3(-1,0,0),
+  vec3(0, 1,0),
+  vec3(0,-1,0),
+  vec3(0,0, 1),
+  vec3(0,0,-1)
+];
+// faces as triples of vertex indices (8 triangular faces)
+const F = [
+  [0,2,4],[2,1,4],[1,3,4],[3,0,4], // top pyramid
+  [2,0,5],[1,2,5],[3,1,5],[0,3,5]  // bottom pyramid
+];
+
+// face color & line
+const faceColor = 'rgba(120,180,255,0.08)';
+const faceLine = 'rgba(150,220,255,0.35)';
+const wireColor = 'rgba(190,230,255,0.95)';
+
+// transformation / rotation state
+let rot = {x:0.4, y:0.6, z:0.1};
+let angularSpeed = 0.9; // radians/sec
+const angAxis = vec3(0,1,0); // rotate about Y mostly
+let angularVel = vec3(0, angularSpeed, 0); // ω vector (radians/sec)
+
+// ---------- Physics balls ----------
+const balls = [];
+const BALL_COUNT = 3;
+const BALL_RADIUS = 0.08;
+const MASS = 1;
+const restitution = 0.85; // bounciness
+
+function rand(min,max){ return min + Math.random()*(max-min); }
+
+function resetBalls(){
+  balls.length = 0;
+  for(let i=0;i<BALL_COUNT;i++){
+    // random positions inside octahedron: sample until inside
+    let p;
+    for(;;){
+      p = vec3(rand(-0.6,0.6), rand(-0.6,0.6), rand(-0.6,0.6));
+      if(pointInsideOctahedron(p)) break;
+    }
+    balls.push({
+      p,
+      v: vec3(rand(-0.2,0.2), rand(-0.1,0.2), rand(-0.2,0.2)),
+      r: BALL_RADIUS,
+      color: ['#ff8a80','#ffd180','#90caf9'][i%3],
+    });
+  }
+}
+
+// quick check: point inside octahedron defined by |x|+|y|+|z| <= 1 (when vertices at axis unit vectors)
+function pointInsideOctahedron(pt){
+  return (Math.abs(pt.x)+Math.abs(pt.y)+Math.abs(pt.z) <= 1 - 1e-6);
+}
+
+// ---------- Projection ----------
+function project(v3){
+  // simple perspective: camera at (0,0,cam.z)
+  const z = v3.z + cam.z;
+  const scale = cam.fov / (z || 0.0001);
+  return {x: v3.x * scale + W/2 + cam.panX, y: -v3.y * scale + H/2 + cam.panY, s: scale, z:z};
+}
+
+// ---------- Simulation ----------
+let lastTime = performance.now();
+let gravityStrength = 9.8;
+
+function update(now){
+  const dt = Math.min((now - lastTime) / 1000, 0.033); // cap dt for stability
+  lastTime = now;
+
+  // read UI
+  angularVel = vec3(0, parseFloat(document.getElementById('speed').value), 0);
+  gravityStrength = parseFloat(document.getElementById('grav').value);
+
+  // update octahedron rotation (integrate angles)
+  rot.x += angularVel.x * dt;
+  rot.y += angularVel.y * dt;
+  rot.z += angularVel.z * dt;
+
+  // compute rotation matrix and rotated vertices
+  const R = makeRotationMatrix(rot.x, rot.y, rot.z);
+  const worldVertices = V.map(v => rotateVecByMatrix(v, R));
+
+  // compute face planes: normal (outward) and d = n·p0
+  const faces = F.map(faceIdx => {
+    const a = worldVertices[faceIdx[0]];
+    const b = worldVertices[faceIdx[1]];
+    const c = worldVertices[faceIdx[2]];
+    const n = normalize(cross(sub(b,a), sub(c,a))); // face normal (direction depends on winding)
+    const d = dot(n, a);
+    return {a,b,c,n,d,centroid: mul(add(add(a,b),c), 1/3)};
+  });
+
+  // physics for each ball
+  for(const ball of balls){
+    // gravity
+    ball.v.y -= gravityStrength * dt * 0.2; // scaled down for scene (feel)
+    // integrate
+    ball.p.x += ball.v.x * dt;
+    ball.p.y += ball.v.y * dt;
+    ball.p.z += ball.v.z * dt;
+
+    // collisions with rotating faces (treating faces as moving rigid body with angular velocity ω)
+    // angular velocity vector in world coords:
+    const omega = angularVel; // rotation about world axes because we applied rotation to vertices
+    // For each face, compute signed distance. For a convex polyhedron, if signed distance > -r then colliding.
+    for(const face of faces){
+      const n = face.n;
+      const signed = dot(n, ball.p) - face.d; // positive if point is outside the half-space pointed by n
+      if(signed > -ball.r){
+        // approximate contact point on plane
+        // plane point nearest = p - signed * n
+        const contactPoint = sub(ball.p, mul(n, signed));
+        // compute plane (face) linear velocity at contact due to rotation: v_plane = ω × r_contact (r_contact is vector from origin to contactPoint)
+        const v_plane = cross(omega, contactPoint);
+
+        // relative normal velocity (ball relative to plane)
+        const v_rel_n = dot(ball.v, n) - dot(v_plane, n);
+        // if moving into plane (v_rel_n > 0) then we need to reflect (because n points outward, positive means exiting; check sign)
+        // We want to push ball outwards (so if signed> -r means penetrating outside side). If v_rel_n > -1e-4 we still respond.
+        if(true){
+          // separate position by penetration depth
+          const penetration = ball.r + signed;
+          if(penetration > 0){
+            ball.p = sub(ball.p, mul(n, penetration + 1e-6));
+          }
+          // reflect velocity about the plane taking into account plane motion
+          // impulse along normal: v' = v - (1+e)*(v_rel_n)*n  where v_rel_n = (v·n - v_plane·n)
+          const coeff = (1 + restitution);
+          const change = mul(n, coeff * v_rel_n);
+          // But we should subtract plane contribution
+          ball.v = sub(ball.v, change);
+          // add a tiny tangential friction to settle
+          ball.v.x *= 0.998;
+          ball.v.y *= 0.998;
+          ball.v.z *= 0.998;
+        }
+      }
+    }
+
+    // also small damping to keep things stable
+    ball.v.x *= 0.999;
+    ball.v.y *= 0.999;
+    ball.v.z *= 0.999;
+
+    // keep balls from drifting too far out by simple safeguard (if they manage to escape numerically)
+    if(length(ball.p) > 5){
+      ball.p = vec3(rand(-0.4,0.4),rand(-0.2,0.4),rand(-0.4,0.4));
+      ball.v = vec3(0,0,0);
+    }
+  } // end balls
+
+  // render
+  render(worldVertices, faces, balls);
+
+  requestAnimationFrame(update);
+}
+
+// ---------- Rendering ----------
+function render(worldVertices, faces, balls){
+  ctx.clearRect(0,0,W,H);
+  // background faint gradient circle
+  const grad = ctx.createRadialGradient(W/2, H/2, 10, W/2, H/2, Math.max(W,H));
+  grad.addColorStop(0, 'rgba(32,48,80,0.12)');
+  grad.addColorStop(1, 'rgba(4,10,24,0.0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+
+  // project vertices
+  const projected = worldVertices.map(p => project(p));
+
+  // draw translucent faces sorted by average depth (painters algorithm)
+  const faceData = faces.map((f, idx) => {
+    const verts = F[idx].map(i => worldVertices[i]);
+    const proj = F[idx].map(i => project(worldVertices[i]));
+    const avgZ = (verts[0].z + verts[1].z + verts[2].z) / 3;
+    return {idx, verts, proj, avgZ, n: f.n};
+  });
+  faceData.sort((a,b)=> b.avgZ - a.avgZ); // far -> near
+
+  // fill faces with translucent color and slight lighting based on normal
+  for(const fd of faceData){
+    // light: dot(n, lightDir)
+    const lightDir = normalize(vec3(0.4,0.6,0.8));
+    let intensity = dot(fd.n, lightDir);
+    intensity = Math.max(0, intensity);
+    ctx.beginPath();
+    ctx.moveTo(fd.proj[0].x, fd.proj[0].y);
+    ctx.lineTo(fd.proj[1].x, fd.proj[1].y);
+    ctx.lineTo(fd.proj[2].x, fd.proj[2].y);
+    ctx.closePath();
+    // color modulation
+    ctx.fillStyle = `rgba(80,140,220,${0.06 + 0.12*intensity})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(170,220,255,${0.2 + 0.25*intensity})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // draw wireframe edges
+  ctx.strokeStyle = wireColor;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for(const face of F){
+    for(let i=0;i<3;i++){
+      const a = projected[face[i]];
+      const b = projected[face[(i+1)%3]];
+      ctx.moveTo(a.x,a.y);
+      ctx.lineTo(b.x,b.y);
+    }
+  }
+  ctx.stroke();
+
+  // draw balls (depth-sorted by z)
+  const ballsDraw = balls.map(b=>{
+    const pr = project(rotateVecByMatrix(b.p, makeRotationMatrix(0,0,0))); // p already world coords
+    // Note: projection uses cam.z; use sphere scale = radius * scale
+    return {b, pr, depth: b.p.z};
+  }).sort((a,b)=> b.depth - a.depth);
+
+  for(const bd of ballsDraw){
+    const b = bd.b;
+    const pr = bd.pr;
+    const screenR = Math.max(2, Math.abs(b.r * pr.s * 300)); // scale to screen
+    // shading
+    const light = Math.max(0, dot(normalize(vec3(0.6,0.7,0.9)), normalize(b.p)));
+    // draw shadow onto inner base (simple)
+    ctx.beginPath();
+    ctx.ellipse(pr.x + 6*pr.s, pr.y + 8*pr.s, screenR*1.1, screenR*0.45, 0, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fill();
+
+    // ball body
+    const gradB = ctx.createRadialGradient(pr.x - screenR*0.3, pr.y - screenR*0.4, screenR*0.3, pr.x, pr.y, screenR*1.5);
+    // color variation
+    const c = b.color;
+    gradB.addColorStop(0, hexToRgba(c, 0.98));
+    gradB.addColorStop(0.6, hexToRgba(c, 0.86));
+    gradB.addColorStop(1, 'rgba(24,24,28,0.08)');
+    ctx.beginPath();
+    ctx.arc(pr.x, pr.y, screenR, 0, TAU);
+    ctx.fillStyle = gradB;
+    ctx.fill();
+    // highlight
+    ctx.beginPath();
+    ctx.arc(pr.x - screenR*0.25, pr.y - screenR*0.35, screenR*0.4, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fill();
+    // edge
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // small axes indicator
+  drawAxes();
+}
+
+function drawAxes(){
+  const axisLen = 40;
+  const origin = project(vec3(0,0,0));
+  const ex = project(vec3(1,0,0));
+  const ey = project(vec3(0,1,0));
+  const ez = project(vec3(0,0,1));
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(origin.x, origin.y); ctx.lineTo(ex.x, ex.y);
+  ctx.moveTo(origin.x, origin.y); ctx.lineTo(ey.x, ey.y);
+  ctx.moveTo(origin.x, origin.y); ctx.lineTo(ez.x, ez.y);
+  ctx.strokeStyle = 'rgba(200,200,255,0.6)';
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+// helper
+function hexToRgba(hex, a=1){
+  // supports #rrggbb
+  hex = hex.replace('#','');
+  const r = parseInt(hex.substring(0,2),16);
+  const g = parseInt(hex.substring(2,4),16);
+  const b = parseInt(hex.substring(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ---------- Interaction ----------
+canvas.addEventListener('mousedown', (e)=>{ cam.drag=true; cam.lastX=e.clientX; cam.lastY=e.clientY; });
+window.addEventListener('mouseup', ()=>{ cam.drag=false; });
+window.addEventListener('mousemove', (e)=>{
+  if(cam.drag){
+    const dx = e.clientX - cam.lastX;
+    const dy = e.clientY - cam.lastY;
+    cam.panX += dx;
+    cam.panY += dy;
+    cam.lastX = e.clientX; cam.lastY = e.clientY;
+  }
+});
+document.getElementById('reset').addEventListener('click', resetBalls);
+
+// resize handling (optional: keep canvas fixed size here)
+window.addEventListener('resize', ()=>{ /* keep fixed for aesthetics */ });
+
+// init
+resetBalls();
+requestAnimationFrame((t)=>{ lastTime = t; requestAnimationFrame(update); });
+
+</script>
+</body>
+</html>

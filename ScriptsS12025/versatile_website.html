@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Versatile Website</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(to right, #f0f4ff, #fafafa);
+    }
+    .glow {
+      text-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body class="font-sans text-gray-800">
+  <!-- Header -->
+  <header class="flex justify-between items-center p-4 bg-white shadow-md sticky top-0 z-50">
+    <h1 class="text-2xl font-bold glow">Versatile Website</h1>
+    <nav class="space-x-4 hidden md:flex">
+      <a href="#shop" class="hover:text-blue-600">Shop</a>
+      <a href="#blog" class="hover:text-blue-600">Blog</a>
+      <a href="#gallery" class="hover:text-blue-600">Gallery</a>
+      <a href="#dashboard" class="hover:text-blue-600">Dashboard</a>
+      <a href="#faq" class="hover:text-blue-600">FAQ</a>
+      <a href="#team" class="hover:text-blue-600">Team</a>
+      <a href="#testimonials" class="hover:text-blue-600">Testimonials</a>
+      <a href="#contact" class="hover:text-blue-600">Contact</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="text-center py-20 bg-gradient-to-r from-blue-100 to-blue-200">
+    <h2 class="text-4xl font-bold mb-4">Welcome to the Most Versatile Website</h2>
+    <p class="mb-6">Shop, blog, gallery, dashboard, and more in one place.</p>
+    <a href="#shop" class="px-6 py-3 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700">Explore Shop</a>
+  </section>
+
+  <!-- Shop -->
+  <section id="shop" class="p-10">
+    <h3 class="text-3xl font-bold mb-6">Shop</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Product cards -->
+      <div class="p-4 border rounded shadow hover:shadow-lg">
+        <img src="https://via.placeholder.com/200" alt="Product" class="mb-4" />
+        <h4 class="font-bold">Product 1</h4>
+        <p class="text-sm mb-2">A versatile item for daily use.</p>
+        <button class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Add to Cart</button>
+      </div>
+      <div class="p-4 border rounded shadow hover:shadow-lg">
+        <img src="https://via.placeholder.com/200" alt="Product" class="mb-4" />
+        <h4 class="font-bold">Product 2</h4>
+        <p class="text-sm mb-2">A must-have product for everyone.</p>
+        <button class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Add to Cart</button>
+      </div>
+      <div class="p-4 border rounded shadow hover:shadow-lg">
+        <img src="https://via.placeholder.com/200" alt="Product" class="mb-4" />
+        <h4 class="font-bold">Product 3</h4>
+        <p class="text-sm mb-2">Top-rated product in our store.</p>
+        <button class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Add to Cart</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Blog -->
+  <section id="blog" class="bg-gray-100 p-10">
+    <h3 class="text-3xl font-bold mb-6">Blog</h3>
+    <article class="mb-6">
+      <h4 class="text-xl font-semibold">Post 1: Building Versatile Websites</h4>
+      <p class="text-sm text-gray-600">Learn how to create multi-functional websites that adapt to any use case.</p>
+    </article>
+    <article>
+      <h4 class="text-xl font-semibold">Post 2: Design that Works Everywhere</h4>
+      <p class="text-sm text-gray-600">Best practices in responsive and adaptive design.</p>
+    </article>
+  </section>
+
+  <!-- Gallery -->
+  <section id="gallery" class="p-10">
+    <h3 class="text-3xl font-bold mb-6">Gallery</h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <img src="https://via.placeholder.com/150" alt="Gallery item" class="rounded shadow" />
+      <img src="https://via.placeholder.com/150" alt="Gallery item" class="rounded shadow" />
+      <img src="https://via.placeholder.com/150" alt="Gallery item" class="rounded shadow" />
+      <img src="https://via.placeholder.com/150" alt="Gallery item" class="rounded shadow" />
+    </div>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="dashboard" class="bg-gray-100 p-10">
+    <h3 class="text-3xl font-bold mb-6">Dashboard</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="p-4 bg-white rounded shadow">
+        <h4 class="font-bold">Users</h4>
+        <p class="text-2xl">1,024</p>
+      </div>
+      <div class="p-4 bg-white rounded shadow">
+        <h4 class="font-bold">Orders</h4>
+        <p class="text-2xl">245</p>
+      </div>
+      <div class="p-4 bg-white rounded shadow">
+        <h4 class="font-bold">Revenue</h4>
+        <p class="text-2xl">₹1,20,000</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="p-10">
+    <h3 class="text-3xl font-bold mb-6">Frequently Asked Questions</h3>
+    <div class="space-y-4">
+      <div>
+        <h4 class="font-semibold">What makes this website versatile?</h4>
+        <p class="text-sm text-gray-600">It combines shop, blog, gallery, dashboard, team, testimonials, and more in one place.</p>
+      </div>
+      <div>
+        <h4 class="font-semibold">Can I customize it?</h4>
+        <p class="text-sm text-gray-600">Yes! It is built with TailwindCSS, making customization simple and fast.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Team -->
+  <section id="team" class="bg-gray-100 p-10">
+    <h3 class="text-3xl font-bold mb-6">Meet Our Team</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="p-4 bg-white rounded shadow text-center">
+        <img src="https://via.placeholder.com/100" alt="Team member" class="mx-auto rounded-full mb-4" />
+        <h4 class="font-bold">Alice</h4>
+        <p class="text-sm text-gray-600">Founder & CEO</p>
+      </div>
+      <div class="p-4 bg-white rounded shadow text-center">
+        <img src="https://via.placeholder.com/100" alt="Team member" class="mx-auto rounded-full mb-4" />
+        <h4 class="font-bold">Bob</h4>
+        <p class="text-sm text-gray-600">Lead Developer</p>
+      </div>
+      <div class="p-4 bg-white rounded shadow text-center">
+        <img src="https://via.placeholder.com/100" alt="Team member" class="mx-auto rounded-full mb-4" />
+        <h4 class="font-bold">Carol</h4>
+        <p class="text-sm text-gray-600">Designer</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section id="testimonials" class="p-10">
+    <h3 class="text-3xl font-bold mb-6">What People Say</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <blockquote class="p-4 bg-white rounded shadow">
+        <p class="italic">“This website has everything I need in one place.”</p>
+        <cite class="block text-right mt-2">– Happy User</cite>
+      </blockquote>
+      <blockquote class="p-4 bg-white rounded shadow">
+        <p class="italic">“Clean design and very versatile. Highly recommend.”</p>
+        <cite class="block text-right mt-2">– Satisfied Client</cite>
+      </blockquote>
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section id="contact" class="p-10">
+    <h3 class="text-3xl font-bold mb-6">Contact Us</h3>
+    <form class="max-w-md space-y-4">
+      <input type="text" placeholder="Your Name" class="w-full border p-2 rounded" />
+      <input type="email" placeholder="Your Email" class="w-full border p-2 rounded" />
+      <textarea placeholder="Your Message" class="w-full border p-2 rounded"></textarea>
+      <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Send</button>
+    </form>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-gray-800 text-white text-center p-4">
+    <p>&copy; 2025 Versatile Website. All rights reserved.</p>
+  </footer>
+</body>
+</html>

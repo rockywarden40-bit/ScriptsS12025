@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CBSE Class 12 Biology MCQs</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: #f0f0f0;
+    }
+    #root {
+        max-width: 900px;
+        margin: auto;
+        background: #fff;
+        margin-top: 30px;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 0 12px rgba(0,0,0,0.1);
+    }
+    .choice {
+        padding: 12px;
+        background: #e9e9e9;
+        border-radius: 8px;
+        margin: 8px 0;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .choice:hover {
+        background: #dcdcdc;
+    }
+    .correct {
+        background: #b2ffb2 !important;
+        border: 2px solid green;
+    }
+    .wrong {
+        background: #ffb2b2 !important;
+        border: 2px solid red;
+    }
+    button {
+        margin-top: 20px;
+        padding: 10px 16px;
+        font-size: 16px;
+        background: royalblue;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    #restartBtn { background: #28a745; }
+    select {
+        margin-bottom: 20px;
+        padding: 10px;
+        font-size: 16px;
+    }
+    #explanation {
+        margin-top: 15px;
+        padding: 12px;
+        background: #dff2ff;
+        border-left: 4px solid #129dea;
+        border-radius: 6px;
+    }
+</style>
+</head>
+
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+// -------------------------
+// question bank (questions.js)
+// -------------------------
+const QUESTION_BANK = [
+  {id:1, topic:'genetics', q:"In Mendel's experiments, the F2 generation showed a phenotypic ratio of:", choices:["3:1","1:1","9:3:3:1","2:1"], ans:0, exp:"Monohybrid cross → 3:1."},
+  {id:2, topic:'human', q:"Which hormone lowers blood glucose?", choices:["Glucagon","Insulin","Adrenaline","Cortisol"], ans:1, exp:"Insulin lowers blood sugar."},
+  {id:3, topic:'eco', q:"Eutrophication is caused by:", choices:["Overfishing","Nutrient enrichment","Salinity","Thermal pollution"], ans:1, exp:"Nitrogen & phosphorus."},
+  {id:4, topic:'biotech', q:"Technique to amplify DNA?", choices:["Western blot","PCR","Electrophoresis","Southern blot"], ans:1, exp:"PCR amplifies DNA."},
+  {id:5, topic:'plants', q:"Primary growth occurs due to:", choices:["Cork cambium","Vascular cambium","Apical meristem","Phellogen"], ans:2, exp:"Apical meristem → elongation."},
+  {id:6, topic:'genetics', q:"Dihybrid (AaBb × AaBb) ratio:", choices:["9:3:3:1","3:1","1:1","9:7"], ans:0, exp:"Classic dihybrid ratio."},
+  {id:7, topic:'human', q:"Filtration occurs at:", choices:["Loop of Henle","PCT","Bowman's capsule","CD"], ans:2, exp:"Glomerulus + Bowman's capsule."},
+  {id:8, topic:'eco', q:"Highest global warming potential:", choices:["CO2","CH4","N2O","Water vapour"], ans:2, exp:"N₂O has highest GWP."},
+  {id:9, topic:'biotech', q:"Common vector in rDNA:", choices:["Mitochondria","Plasmids","Ribosomes","Lysosomes"], ans:1, exp:"Plasmids used for cloning."},
+  {id:10, topic:'plants', q:"Photoperiodism depends on:", choices:["Intensity","Day length","Moisture","Temperature"], ans:1, exp:"Plants sense day length."},
+  {id:11, topic:'human', q:"Oxygenated blood from lungs to heart:", choices:["Pulmonary artery","Pulmonary vein","Aorta","Vena cava"], ans:1, exp:"Pulmonary vein."},
+  {id:12, topic:'genetics', q:"Intermediate phenotype:", choices:["Codominance","Incomplete dominance","Epistasis","Pleiotropy"], ans:1, exp:"Incomplete dominance."},
+  {id:13, topic:'eco', q:"Primary succession starts on:", choices:["Farmland","Bare rock","Grassland","Forest"], ans:1, exp:"Bare rock."},
+  {id:14, topic:'biotech', q:"Restriction enzymes:", choices:["Join DNA","Cut DNA","Synthesize DNA","Sequence DNA"], ans:1, exp:"They cut DNA."},
+  {id:15, topic:'plants', q:"Stomatal opening is controlled by:", choices:["Mesophyll","Guard cells","Xylem","Phloem"], ans:1, exp:"Guard cells."}
+];
+
+// -------------------------
+// main React app (App.js)
+// -------------------------
+function App() {
+
+  const [index, setIndex] = React.useState(0);
+  const [score, setScore] = React.useState(0);
+  const [selected, setSelected] = React.useState(null);
+  const [topic, setTopic] = React.useState("all");
+
+  const filtered = topic === "all" ? QUESTION_BANK : QUESTION_BANK.filter(q => q.topic === topic);
+  const q = filtered[index];
+
+  function choose(i) {
+    if (selected !== null) return;
+    setSelected(i);
+    if (i === q.ans) setScore(prev => prev + 1);
+  }
+
+  function next() {
+    setSelected(null);
+    setIndex(prev => prev + 1);
+  }
+
+  function restart() {
+    setIndex(0);
+    setScore(0);
+    setSelected(null);
+  }
+
+  if (!q) {
+    return (
+      <div>
+        <h2>Finished!</h2>
+        <h3>Your Score: {score} / {filtered.length}</h3>
+        <button id="restartBtn" onClick={restart}>Restart</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h2>CBSE Class 12 – Biology MCQs</h2>
+
+      <select value={topic} onChange={e=>{setTopic(e.target.value); restart();}}>
+        <option value="all">All Topics</option>
+        <option value="genetics">Genetics</option>
+        <option value="human">Human Physiology</option>
+        <option value="eco">Ecology</option>
+        <option value="biotech">Biotechnology</option>
+        <option value="plants">Plant Physiology</option>
+      </select>
+
+      <h3>Q{index + 1}. {q.q}</h3>
+
+      {q.choices.map((c,i)=>(
+        <div
+          key={i}
+          className={
+            "choice " +
+            (selected === null
+              ? ""
+              : i === q.ans
+                ? "correct"
+                : selected === i
+                  ? "wrong"
+                  : "")
+          }
+          onClick={()=>choose(i)}
+        >
+          {c}
+        </div>
+      ))}
+
+      {selected !== null && (
+        <>
+          <div id="explanation"><b>Explanation:</b> {q.exp}</div>
+          <button onClick={next}>Next</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// render
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+</script>
+</body>
+</html>

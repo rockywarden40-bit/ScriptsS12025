@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bouncing ball in growing polygon</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --poly: #2ee6a6;
+      --ball: #ffcc00;
+      --trail: rgba(255, 204, 0, 0.15);
+    }
+    html, body {
+      margin: 0; height: 100%; background: var(--bg); color: #e8eaf6;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      user-select: none;
+    }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    .hud {
+      position: fixed; top: 12px; left: 12px; background: rgba(15,18,32,0.7);
+      padding: 8px 12px; border-radius: 8px; backdrop-filter: blur(6px);
+      font-size: 14px; line-height: 1.4; border: 1px solid rgba(255,255,255,0.08);
+    }
+    .hud b { color: #fff; }
+    .controls {
+      position: fixed; bottom: 12px; left: 12px; display: flex; gap: 8px;
+    }
+    button {
+      padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.06); color: #fff; cursor: pointer;
+    }
+    button:hover { background: rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div class="hud" id="hud"></div>
+  <div class="controls">
+    <button id="resetBtn">Reset</button>
+    <button id="toggleTrailBtn">Toggle trail</button>
+  </div>
+
+  <script>
+    // ---- Tunable parameters ----
+    const CONFIG = {
+      startSides: 3,         // Triangle
+      maxSides: 20,          // Cap polygon growth
+      polygonRadiusFactor: 0.42, // Polygon radius as fraction of min(canvas w,h)
+      ballRadius: 10,
+      startSpeed: 180,       // pixels/sec
+      speedIncrement: 25,    // added after each collision
+      maxSpeed: 1000,        // cap speed
+      trailEnabled: true,    // keep motion trails
+      restitution: 1.0,      // energy retention on bounce
+      edgePadding: 2         // small inward padding to avoid tunneling
+    };
+
+    const canvas = document.getElementById('scene');
+    const hud = document.getElementById('hud');
+    const resetBtn = document.getElementById('resetBtn');
+    const toggleTrailBtn = document.getElementById('toggleTrailBtn');
+    const ctx = canvas.getContext('2d');
+
+    let W = 0, H = 0, CX = 0, CY = 0;
+    let polySides = CONFIG.startSides;
+    let vertices = [];
+    let radius = 0;
+
+    const ball = {
+      x: 0, y: 0,
+      vx: 0, vy: 0,
+      r: CONFIG.ballRadius,
+      speed: CONFIG.startSpeed,
+      collisions: 0
+    };
+
+    function resize() {
+      const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      W = window.innerWidth;
+      H = window.innerHeight;
+      CX = W / 2;
+      CY = H / 2;
+      radius = Math.min(W, H) * CONFIG.polygonRadiusFactor;
+      updatePolygon();
+    }
+
+    function updatePolygon() {
+      vertices = [];
+      for (let i = 0; i < polySides; i++) {
+        const angle = -Math.PI / 2 + i * (2 * Math.PI / polySides); // start at top
+        const x = CX + (radius - CONFIG.edgePadding) * Math.cos(angle);
+        const y = CY + (radius - CONFIG.edgePadding) * Math.sin(angle);
+        vertices.push({ x, y });
+      }
+    }
+
+    function resetBall() {
+      ball.x = CX;
+      ball.y = CY;
+      // Random direction
+      const theta = Math.random() * Math.PI * 2;
+      ball.vx = Math.cos(theta) * ball.speed;
+      ball.vy = Math.sin(theta) * ball.speed;
+      ball.collisions = 0;
+    }
+
+    function resetAll() {
+      polySides = CONFIG.startSides;
+      updatePolygon();
+      ball.speed = CONFIG.startSpeed;
+      resetBall();
+      clearCanvasHard();
+    }
+
+    function clearCanvasSoft() {
+      // Soft clear for trail effect
+      ctx.fillStyle = CONFIG.trailEnabled ? 'rgba(15,18,32,0.08)' : 'rgba(15,18,32,1)';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    function clearCanvasHard() {
+      ctx.fillStyle = 'rgba(15,18,32,1)';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    function drawPolygon() {
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--poly').trim();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(vertices[0].x, vertices[0].y);
+      for (let i = 1; i < vertices.length; i++) ctx.lineTo(vertices[i].x, vertices[i].y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    function drawBall() {
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--ball').trim();
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Geometry helpers
+    function dot(ax, ay, bx, by) { return ax * bx + ay * by; }
+    function sub(a, b) { return { x: a.x - b.x, y: a.y - b.y }; }
+    function length(v) { return Math.hypot(v.x, v.y); }
+    function normalize(v) {
+      const L = length(v); return L > 0 ? { x: v.x / L, y: v.y / L } : { x: 0, y: 0 };
+    }
+
+    // Distance from point to segment, with closest point
+    function pointSegmentDistance(px, py, ax, ay, bx, by) {
+      const vx = bx - ax, vy = by - ay;
+      const wx = px - ax, wy = py - ay;
+      const c1 = vx * wx + vy * wy;
+      const c2 = vx * vx + vy * vy;
+      let t = c2 > 0 ? c1 / c2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const cx = ax + t * vx, cy = ay + t * vy;
+      const dx = px - cx, dy = py - cy;
+      return { dist: Math.hypot(dx, dy), cx, cy, t };
+    }
+
+    // Reflect velocity across a wall normal
+    function reflectVelocity(vx, vy, nx, ny, restitution = 1.0) {
+      // v' = v - 2 (v·n) n
+      const vdotn = vx * nx + vy * ny;
+      const rvx = vx - 2 * vdotn * nx;
+      const rvy = vy - 2 * vdotn * ny;
+      return { vx: rvx * restitution, vy: rvy * restitution };
+    }
+
+    // Detect collision with polygon edges and respond; returns true if collision happened
+    function handleCollisions(dt) {
+      let collided = false;
+      const nextX = ball.x + ball.vx * dt;
+      const nextY = ball.y + ball.vy * dt;
+
+      // Check each edge
+      for (let i = 0; i < vertices.length; i++) {
+        const a = vertices[i];
+        const b = vertices[(i + 1) % vertices.length];
+
+        // Segment normal pointing inward for a regular polygon:
+        const edge = sub(b, a);
+        const edgeNormal = normalize({ x: -(edge.y), y: edge.x }); // one of the normals
+        // Ensure normal points approximately toward center
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const toCenter = normalize({ x: CX - mid.x, y: CY - mid.y });
+        const alignment = dot(edgeNormal.x, edgeNormal.y, toCenter.x, toCenter.y);
+        const inwardNormal = alignment >= 0 ? edgeNormal : { x: -edgeNormal.x, y: -edgeNormal.y };
+
+        // Distance from ball center to edge
+        const { dist, cx, cy } = pointSegmentDistance(nextX, nextY, a.x, a.y, b.x, b.y);
+
+        // If the ball would penetrate the wall (within radius) and is moving toward it, bounce
+        const relToEdge = { x: nextX - cx, y: nextY - cy };
+        const movingToward = dot(ball.vx, ball.vy, inwardNormal.x, inwardNormal.y) < 0;
+
+        if (dist <= ball.r && movingToward) {
+          // Move ball back along normal to avoid sinking
+          const pushOut = ball.r - dist + 0.5;
+          ball.x = nextX + inwardNormal.x * pushOut;
+          ball.y = nextY + inwardNormal.y * pushOut;
+
+          const rv = reflectVelocity(ball.vx, ball.vy, inwardNormal.x, inwardNormal.y, CONFIG.restitution);
+          ball.vx = rv.vx;
+          ball.vy = rv.vy;
+
+          // Speed up and grow polygon
+          ball.speed = Math.min(CONFIG.maxSpeed, ball.speed + CONFIG.speedIncrement);
+          const vLen = Math.hypot(ball.vx, ball.vy);
+          if (vLen > 0) {
+            ball.vx = ball.vx / vLen * ball.speed;
+            ball.vy = ball.vy / vLen * ball.speed;
+          }
+
+          if (polySides < CONFIG.maxSides) {
+            polySides += 1;
+            updatePolygon();
+          }
+          ball.collisions += 1;
+          collided = true;
+          break; // one collision per frame is enough
+        }
+      }
+
+      if (!collided) {
+        // No collision; accept the next position
+        ball.x = nextX;
+        ball.y = nextY;
+      }
+
+      return collided;
+    }
+
+    function updateHUD() {
+      hud.innerHTML = `
+        <div><b>Sides:</b> ${polySides}</div>
+        <div><b>Speed:</b> ${Math.round(ball.speed)} px/s</div>
+        <div><b>Collisions:</b> ${ball.collisions}</div>
+      `;
+    }
+
+    // Animation loop
+    let lastTime = performance.now();
+
+    function loop(now) {
+      const dt = Math.min(0.033, (now - lastTime) / 1000); // clamp dt for stability
+      lastTime = now;
+
+      clearCanvasSoft();
+      drawPolygon();
+
+      // Bounce logic
+      handleCollisions(dt);
+
+      // Soft keep inside center area in case of numerical drift
+      // (Optional tiny correction—comment out if not desired)
+
+      drawBall();
+      updateHUD();
+
+      requestAnimationFrame(loop);
+    }
+
+    // Events
+    window.addEventListener('resize', resize);
+    resetBtn.addEventListener('click', resetAll);
+    toggleTrailBtn.addEventListener('click', () => {
+      CONFIG.trailEnabled = !CONFIG.trailEnabled;
+    });
+
+    // Init
+    resize();
+    resetBall();
+    clearCanvasHard();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

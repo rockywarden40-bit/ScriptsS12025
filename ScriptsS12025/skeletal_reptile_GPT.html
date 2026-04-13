@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Skeletal Reptile — Follow Cursor</title>
+  <style>
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#0b1220 0%, #0d1b2b 50%, #071219 100%);overflow:hidden;font-family:system-ui,Segoe UI,Roboto}
+    canvas{display:block; width:100vw; height:100vh}
+    .hint{position:fixed;left:12px;bottom:12px;color:#9fb8d6;font-size:13px;background:rgba(255,255,255,0.03);padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="hint">Move your cursor / touch to make the skeletal reptile follow</div>
+
+  <script>
+    // Skeletal reptile that follows cursor — single-file, no libraries
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    let DPR = Math.max(1, window.devicePixelRatio || 1);
+
+    function resize(){
+      canvas.width = Math.floor(innerWidth * DPR);
+      canvas.height = Math.floor(innerHeight * DPR);
+      canvas.style.width = innerWidth + 'px';
+      canvas.style.height = innerHeight + 'px';
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    // Mouse / touch target
+    const state = {
+      tx: innerWidth/2,
+      ty: innerHeight/2,
+      mx: innerWidth/2,
+      my: innerHeight/2,
+      running:true
+    };
+
+    addEventListener('pointermove', e=>{
+      state.mx = e.clientX;
+      state.my = e.clientY;
+      state.tx = state.mx;
+      state.ty = state.my;
+    });
+    addEventListener('pointerdown', e=>{state.mx=e.clientX;state.my=e.clientY;state.tx=state.mx;state.ty=state.my});
+    addEventListener('pointerup', ()=>{});
+
+    // Simple segmented skeleton — head + spine + tail
+    const segmentCount = 18; // spine + tail segments
+    const segments = [];
+    const SEG_LEN = 28; // pixels between joints
+
+    // Create segments with positions starting from center-left
+    const startX = innerWidth*0.25;
+    const startY = innerHeight*0.5;
+    for(let i=0;i<segmentCount;i++){
+      segments.push({x:startX - i*SEG_LEN, y:startY + Math.sin(i/2)*6, tx:startX - i*SEG_LEN, ty:startY, angle:0});
+    }
+
+    // bones drawing helpers
+    function drawBone(ax,ay,bx,by,width){
+      const vx = bx-ax, vy = by-ay;
+      const len = Math.hypot(vx,vy);
+      const nx = -vy/len, ny = vx/len; // normal
+      ctx.beginPath();
+      ctx.moveTo(ax + nx*width, ay + ny*width);
+      ctx.lineTo(bx + nx*width, by + ny*width);
+      ctx.lineTo(bx - nx*width, by - ny*width);
+      ctx.lineTo(ax - nx*width, ay - ny*width);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // skull drawing
+    function drawSkull(x,y,angle,scale=1){
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(angle);
+      ctx.scale(scale,scale);
+      // skull outline
+      ctx.beginPath();
+      ctx.ellipse(0,0,18,12,0,0,Math.PI*2);
+      ctx.fill();
+      // eye sockets
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();ctx.ellipse(6,-2,4,5,0,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.ellipse(-2,-1,3,4,0,0,Math.PI*2);ctx.fill();
+      // lower jaw cutout
+      ctx.beginPath();ctx.rect(-10,6,20,4);ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      // small nasal holes
+      ctx.fillRect(1,1,1.5,1.5);
+      ctx.fillRect(4,1,1.5,1.5);
+      ctx.restore();
+    }
+
+    // subtle glow / ambient
+    function drawBackground(){
+      // gradient vignette
+      const g = ctx.createLinearGradient(0,0,0,innerHeight);
+      g.addColorStop(0,'rgba(10,16,24,0.16)');
+      g.addColorStop(0.5,'rgba(2,4,8,0.08)');
+      g.addColorStop(1,'rgba(0,0,0,0.22)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,innerWidth,innerHeight);
+    }
+
+    // main loop
+    let last = performance.now();
+    function step(now){
+      const dt = Math.min(40,(now-last));
+      last = now;
+
+      // Smoothly ease target a bit for a more organic follow
+      const ease = 0.18;
+      state.tx += (state.mx - state.tx) * ease;
+      state.ty += (state.my - state.ty) * ease;
+
+      // The head (segments[0]) chases the target
+      const head = segments[0];
+      head.x += (state.tx - head.x) * 0.24;
+      head.y += (state.ty - head.y) * 0.24;
+      head.angle = Math.atan2(state.ty-head.y, state.tx-head.x);
+
+      // Each next segment follows previous with fixed distance
+      for(let i=1;i<segments.length;i++){
+        const p = segments[i-1];
+        const s = segments[i];
+        const dx = s.x - p.x;
+        const dy = s.y - p.y;
+        // we want s to be behind p at distance SEG_LEN
+        const dist = Math.hypot(dx,dy) || 0.001;
+        const targetX = p.x + (dx/dist) * SEG_LEN;
+        const targetY = p.y + (dy/dist) * SEG_LEN;
+        // move s toward targetX/Y with smoothing
+        s.x += (targetX - s.x) * 0.9;
+        s.y += (targetY - s.y) * 0.9;
+        s.angle = Math.atan2(p.y - s.y, p.x - s.x) + Math.PI; // point toward previous
+      }
+
+      // clear with translucent to create motion blur
+      ctx.clearRect(0,0,innerWidth,innerHeight);
+
+      // subtle vignette background
+      drawBackground();
+
+      // draw shadow under skeleton
+      ctx.save();
+      ctx.globalAlpha = 0.06;
+      ctx.fillStyle = '#000';
+      ctx.translate(8,10);
+      ctx.beginPath();
+      ctx.ellipse(segments[0].x, segments[0].y+24, 220, 70, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+
+      // draw bones from tail -> head so head is on top
+      for(let i=segments.length-1;i>0;i--){
+        const a = segments[i];
+        const b = segments[i-1];
+        // width varies along the body
+        const t = i/(segments.length-1);
+        const boneWidth = 6 * (1 - t) + 1.6; // thicker near head
+        // bone color — pale bone
+        ctx.fillStyle = '#e9ecd6';
+        // add a subtle inner stroke for depth
+        drawBone(a.x,a.y,b.x,b.y,boneWidth);
+        // small vertebra discs
+        ctx.beginPath();
+        ctx.fillStyle = '#dfe1c7';
+        const vx = (a.x + b.x)/2; const vy = (a.y + b.y)/2;
+        ctx.ellipse(vx,vy,Math.max(1.2, boneWidth*0.45), Math.max(1.2,boneWidth*0.25), 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // draw spines / ribs as thin strokes along upper edge
+      for(let i=0;i<segments.length-2;i+=1){
+        const a = segments[i];
+        const b = segments[i+1];
+        const midx = (a.x+b.x)/2, midy = (a.y+b.y)/2;
+        const ang = Math.atan2(b.y-a.y,b.x-a.x);
+        // spine offset
+        const ox = Math.cos(ang+Math.PI/2)*8;
+        const oy = Math.sin(ang+Math.PI/2)*8;
+        ctx.beginPath(); ctx.moveTo(midx,midy); ctx.lineTo(midx+ox, midy+oy); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(233,236,214,0.85)'; ctx.stroke();
+      }
+
+      // draw skull at head position
+      ctx.fillStyle = '#f3f5df';
+      drawSkull(segments[0].x, segments[0].y, segments[0].angle, 1.05);
+
+      // draw little jawbone line
+      ctx.strokeStyle = 'rgba(20,20,20,0.12)'; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(segments[0].x-6, segments[0].y+10);
+      ctx.lineTo(segments[0].x+8, segments[0].y+12);
+      ctx.stroke();
+
+      // glowing eyes as faint fill
+      ctx.beginPath(); ctx.fillStyle='rgba(90,170,255,0.12)'; ctx.ellipse(segments[0].x+6, segments[0].y-2, 5,6,0,0,Math.PI*2); ctx.fill();
+
+      requestAnimationFrame(step);
+    }
+
+    requestAnimationFrame(step);
+
+    // responsiveness — reposition segments when window resized
+    addEventListener('resize', ()=>{
+      // gently re-center head
+      const cx = innerWidth*0.35, cy = innerHeight*0.5;
+      for(let i=0;i<segments.length;i++){
+        segments[i].x = cx - i*SEG_LEN;
+        segments[i].y = cy + Math.sin(i/2)*6;
+      }
+    });
+
+    // Nice touch: if user leaves mouse still, creature slowly snoops around
+    let idle = 0;
+    setInterval(()=>{
+      idle += 1;
+      if(Math.abs(state.mx - state.tx) < 0.5 && Math.abs(state.my - state.ty) < 0.5) idle++;
+      if(idle > 220){
+        // slow breathing motion
+        const t = performance.now()*0.001;
+        for(let i=0;i<segments.length;i++){
+          segments[i].x += Math.cos(t + i*0.3)*0.15;
+          segments[i].y += Math.sin(t*0.7 + i*0.12)*0.12;
+        }
+        idle = 0;
+      }
+    }, 200);
+
+  </script>
+</body>
+</html>

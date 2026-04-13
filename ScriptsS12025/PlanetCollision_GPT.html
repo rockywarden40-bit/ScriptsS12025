@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Planet Collision → Ring Formation</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+  canvas { display: block; }
+  #label {
+    position: fixed;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #aaa;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+<div id="label">Planetary Collision → Dust & Gas Ring Formation</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+// ---------- SCENE SETUP ----------
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x000000, 20, 120);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0, 10, 40);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// ---------- LIGHTING ----------
+scene.add(new THREE.AmbientLight(0x444444));
+
+const sunLight = new THREE.PointLight(0xffddaa, 2.5, 200);
+sunLight.position.set(0, 0, 0);
+scene.add(sunLight);
+
+// ---------- PLANETS ----------
+const planetGeo = new THREE.SphereGeometry(4, 64, 64);
+
+const matA = new THREE.MeshStandardMaterial({ color: 0x3fa9f5, roughness: 0.6 });
+const matB = new THREE.MeshStandardMaterial({ color: 0xff6a3d, roughness: 0.6 });
+
+const planetA = new THREE.Mesh(planetGeo, matA);
+const planetB = new THREE.Mesh(planetGeo, matB);
+
+planetA.position.x = -18;
+planetB.position.x = 18;
+
+scene.add(planetA, planetB);
+
+let collided = false;
+let mergedPlanet;
+
+// ---------- DUST & GAS PARTICLES ----------
+const particleCount = 4000;
+const positions = new Float32Array(particleCount * 3);
+const velocities = [];
+
+for (let i = 0; i < particleCount; i++) {
+  positions[i * 3 + 0] = 0;
+  positions[i * 3 + 1] = 0;
+  positions[i * 3 + 2] = 0;
+  velocities.push(new THREE.Vector3());
+}
+
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+const particleMat = new THREE.PointsMaterial({
+  color: 0xffcc88,
+  size: 0.15,
+  transparent: true,
+  opacity: 0.85
+});
+
+const particles = new THREE.Points(particleGeo, particleMat);
+particles.visible = false;
+scene.add(particles);
+
+// ---------- ANIMATION ----------
+let time = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  time += 0.01;
+
+  if (!collided) {
+    planetA.position.x += 0.12;
+    planetB.position.x -= 0.12;
+    planetA.rotation.y += 0.01;
+    planetB.rotation.y -= 0.01;
+
+    if (planetA.position.distanceTo(planetB.position) < 8) {
+      collided = true;
+
+      // Create merged planet
+      const mergedGeo = new THREE.SphereGeometry(6, 64, 64);
+      const mergedMat = new THREE.MeshStandardMaterial({
+        color: 0xb36bff,
+        roughness: 0.5,
+        emissive: 0x220022
+      });
+      mergedPlanet = new THREE.Mesh(mergedGeo, mergedMat);
+      scene.add(mergedPlanet);
+
+      scene.remove(planetA, planetB);
+
+      // Initialize particle explosion
+      particles.visible = true;
+      for (let i = 0; i < particleCount; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = Math.random() * 6;
+        const height = (Math.random() - 0.5) * 1.5;
+
+        positions[i * 3 + 0] = Math.cos(angle) * radius;
+        positions[i * 3 + 1] = height;
+        positions[i * 3 + 2] = Math.sin(angle) * radius;
+
+        velocities[i].set(
+          Math.random() * 0.05 + 0.03,
+          height * 0.002,
+          Math.random() * 0.05 + 0.03
+        );
+      }
+    }
+  } else {
+    mergedPlanet.rotation.y += 0.004;
+
+    // Ring formation
+    const pos = particleGeo.attributes.position.array;
+    for (let i = 0; i < particleCount; i++) {
+      const ix = i * 3;
+      const x = pos[ix];
+      const z = pos[ix + 2];
+
+      const angle = Math.atan2(z, x) + 0.01 + velocities[i].x * 0.2;
+      const radius = Math.sqrt(x * x + z * z) * 0.999 + 0.02;
+
+      pos[ix]     = Math.cos(angle) * radius;
+      pos[ix + 1] *= 0.995;
+      pos[ix + 2] = Math.sin(angle) * radius;
+    }
+    particleGeo.attributes.position.needsUpdate = true;
+  }
+
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ---------- RESIZE ----------
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

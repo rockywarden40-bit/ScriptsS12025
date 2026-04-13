@@ -1,0 +1,420 @@
+<!--
+GE-CLONE (single-file Geometry Dash–style clone)
+Author: Generated for user
+
+README (quick):
+- Open this file in a modern browser (double-click index.html). No server required.
+- Controls:
+  * Keyboard: Space / ArrowUp = jump (hold for longer jump), Shift or ArrowDown = dash, Enter = start
+  * Mouse / Touch: Tap / Click = jump, Swipe down or two-finger tap = dash
+  * On-screen mobile buttons available at bottom-right (Jump, Dash, Pause)
+- Persistence: localStorage keys: 'ge_clone_highscores' and 'ge_clone_unlocked'
+- Add levels: edit the `LEVELS` array in the JS section. Format shown at the bottom.
+
+Notes for developer:
+- Structure: Game, Renderer, Input, LevelLoader, Entities in one file for simplicity.
+- Uses fixed timestep physics (60 updates/sec) with interpolation for rendering.
+- Audio: procedural WebAudio for music + SFX (no external files).
+- Performance: only draws objects in view; simple pooling for particles.
+-->
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>GE-CLONE</title>
+<style>
+:root{--bg:#06060a;--neon:#00f0ff;--accent:#ff3cac;--muted:#9aa0a6}
+html,body{height:100%;margin:0;background:var(--bg);color:#fff;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+#game{display:flex;flex-direction:column;height:100vh}
+canvas{background:linear-gradient(180deg,#071026 0%, #02020a 100%);display:block;margin:auto}
+.ui{position:absolute;left:12px;top:12px;font-size:14px}
+.title{font-weight:800;font-size:28px;letter-spacing:2px}
+.menu{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto}
+.menu .card{background:rgba(0,0,0,0.35);backdrop-filter:blur(4px);padding:22px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);text-align:center}
+.btn{display:inline-block;padding:10px 18px;margin:8px;border-radius:8px;background:linear-gradient(90deg,var(--neon),var(--accent));color:#021018;font-weight:700;cursor:pointer}
+.small{font-size:13px;color:var(--muted)}
+.hud{position:absolute;right:12px;top:12px;text-align:right}
+.controls-mobile{position:fixed;right:12px;bottom:12px;display:flex;gap:8px}
+.mobile-btn{width:68px;height:68px;border-radius:12px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-weight:700}
+.pause-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.footer{position:fixed;left:12px;bottom:12px;color:var(--muted);font-size:12px}
+.canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+</style>
+</head>
+<body>
+<div id="game">
+  <div class="ui"><div class="title">GE-CLONE</div><div class="small">A tiny Geometry Dash–style demo</div></div>
+  <div class="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div class="hud" id="hud"></div>
+    <div class="menu" id="menu">
+      <div class="card" id="menuCard">
+        <h2>GE-CLONE</h2>
+        <div class="small">Fast-paced neon platformer</div>
+        <div style="margin-top:12px">
+          <button class="btn" id="playBtn">Play</button>
+          <button class="btn" id="levelBtn">Level Select</button>
+          <button class="btn" id="settingsBtn">Settings</button>
+        </div>
+        <div style="margin-top:10px" class="small">How to Play: Tap / Space — Jump. Hold — Longer jump. Shift / Swipe Down — Dash.</div>
+      </div>
+    </div>
+
+    <div class="menu" id="levelMenu" style="display:none">
+      <div class="card" id="levelCard">
+        <h3>Select Level</h3>
+        <div id="levelButtons" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+        <div style="margin-top:10px"><button class="btn" id="backFromLevel">Back</button></div>
+      </div>
+    </div>
+
+    <div class="menu" id="settingsMenu" style="display:none">
+      <div class="card">
+        <h3>Settings</h3>
+        <div style="margin-top:8px;text-align:left">
+          <label class="small">Music <input id="musicToggle" type="checkbox" checked></label><br>
+          <label class="small">SFX <input id="sfxToggle" type="checkbox" checked></label><br>
+          <label class="small">Volume <input id="masterVol" type="range" min="0" max="1" step="0.01" value="0.8"></label>
+        </div>
+        <div style="margin-top:10px"><button class="btn" id="settingsBack">Back</button></div>
+      </div>
+    </div>
+
+    <div class="pause-overlay" id="pauseOverlay" style="display:none">
+      <div class="card">
+        <h3>Paused</h3>
+        <div style="margin-top:8px">
+          <button class="btn" id="resumeBtn">Resume</button>
+          <button class="btn" id="restartBtn">Restart</button>
+          <button class="btn" id="toLevelSelectBtn">Level Select</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">Highscore: <span id="highscoreDisplay">0</span></div>
+  </div>
+
+  <div style="height:8px"></div>
+</div>
+
+<div class="controls-mobile">
+  <div class="mobile-btn" id="jumpBtn">Jump</div>
+  <div class="mobile-btn" id="dashBtn">Dash</div>
+  <div class="mobile-btn" id="pauseBtn">||</div>
+</div>
+
+<script>
+// --- CONFIG & LEVELS ---
+const WIDTH = 900, HEIGHT = 480; // base logical resolution
+
+const LEVELS = [
+  {
+    name: 'Neon Start (Easy)', bpm: 95, speed: 1.0,
+    chunks: [
+      {type:'platform', x:0, y:360, w:1400},
+      {type:'spike', x:520, y:344},
+      {type:'gap', x:700, w:160},
+      {type:'spike', x:920, y:344},
+      {type:'portal', x:1100, effect:'double_jump', duration:5000},
+      {type:'saw', x:1300, y:320, speed:1.2},
+      {type:'gap', x:1500, w:220},
+      {type:'platform', x:1800, y:340, w:1000}
+    ],
+    parallax: [{speed:0.2},{speed:0.5}]
+  },
+  {
+    name: 'Pulse Run (Medium)', bpm: 120, speed: 1.3,
+    chunks:[
+      {type:'platform',x:0,y:360,w:900},
+      {type:'saw',x:700,y:320,speed:2.0},
+      {type:'gap',x:820,w:140},
+      {type:'platform',x:980,y:360,w:520},
+      {type:'spike',x:1200,y:344},
+      {type:'portal',x:1380,effect:'dash',duration:4000},
+      {type:'gap',x:1600,w:200},
+      {type:'saw',x:1960,y:300,speed:2.5}
+    ],
+    parallax:[{speed:0.18},{speed:0.55}]
+  },
+  {
+    name: 'Hyper Flux (Hard)', bpm: 160, speed:1.6,
+    chunks:[
+      {type:'platform',x:0,y:360,w:700},
+      {type:'gap',x:760,w:120},
+      {type:'saw',x:900,y:320,speed:3.0},
+      {type:'spike',x:1100,y:344},
+      {type:'gap',x:1240,w:200},
+      {type:'saw',x:1480,y:300,speed:3.5},
+      {type:'portal',x:1770,effect:'double_jump',duration:3000},
+      {type:'platform',x:2000,y:360,w:900}
+    ],
+    parallax:[{speed:0.22},{speed:0.6}]
+  }
+];
+
+// --- STORAGE ---
+const STORAGE_KEY = 'ge_clone_save_v1';
+let SAVE = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+if(!SAVE.unlocked) SAVE.unlocked = [0];
+if(!SAVE.highscores) SAVE.highscores = [0,0,0];
+
+// --- CANVAS SETUP ---
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const vw = Math.max(320, Math.min(window.innerWidth, 1400));
+  const vh = window.innerHeight - 20;
+  const scale = Math.min(vw/WIDTH, vh/HEIGHT);
+  canvas.width = Math.floor(WIDTH * scale * dpr);
+  canvas.height = Math.floor(HEIGHT * scale * dpr);
+  canvas.style.width = Math.floor(WIDTH * scale) + 'px';
+  canvas.style.height = Math.floor(HEIGHT * scale) + 'px';
+  ctx.setTransform(dpr * scale,0,0,dpr * scale,0,0);
+}
+window.addEventListener('resize',resize);
+resize();
+
+// --- INPUT ---
+const Input = {jump:false, dash:false, down:false};
+let touchStartY = null;
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space' || e.code==='ArrowUp'){Input.jump=true; e.preventDefault();}
+  if(e.code==='ShiftLeft' || e.code==='ShiftRight' || e.code==='ArrowDown'){Input.dash=true; Input.down=true;}
+  if(e.code==='Enter'){startGame();}
+});
+window.addEventListener('keyup',e=>{ if(e.code==='Space' || e.code==='ArrowUp') Input.jump=false; if(e.code==='ShiftLeft'||e.code==='ShiftRight'||e.code==='ArrowDown'){Input.dash=false;Input.down=false;} });
+canvas.addEventListener('mousedown',e=>{Input.jump=true;});
+canvas.addEventListener('mouseup',e=>{Input.jump=false;});
+canvas.addEventListener('touchstart',e=>{Input.jump=true; if(e.touches && e.touches[0]) touchStartY = e.touches[0].clientY;});
+canvas.addEventListener('touchend',e=>{Input.jump=false; touchStartY=null;});
+canvas.addEventListener('touchmove',e=>{ if(touchStartY && e.touches && e.touches[0]){ const dy = e.touches[0].clientY - touchStartY; if(dy>60){ Input.dash=true; } } });
+
+document.getElementById('jumpBtn').addEventListener('pointerdown',()=>Input.jump=true);
+document.getElementById('jumpBtn').addEventListener('pointerup',()=>Input.jump=false);
+document.getElementById('dashBtn').addEventListener('pointerdown',()=>{Input.dash=true; setTimeout(()=>Input.dash=false,150);});
+document.getElementById('pauseBtn').addEventListener('click',()=>togglePause());
+
+// --- AUDIO (procedural) ---
+const AudioCtx = window.AudioContext ? new AudioContext() : null;
+let masterGain=null, musicOn=true, sfxOn=true, masterVol=0.8;
+if(AudioCtx){ masterGain=AudioCtx.createGain(); masterGain.connect(AudioCtx.destination); masterGain.gain.value=masterVol; }
+function playSFX(type){ if(!AudioCtx || !sfxOn) return; const t=AudioCtx.currentTime; const g=AudioCtx.createGain(); g.connect(masterGain); g.gain.value=0.6; if(type==='jump'){ const o=AudioCtx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(520,t); o.connect(g); o.start(t); o.stop(t+0.08);} if(type==='dash'){ const o=AudioCtx.createOscillator(); o.type='square'; o.frequency.setValueAtTime(220,t); o.connect(g); o.start(t); o.stop(t+0.14);} if(type==='crash'){ const b=AudioCtx.createBufferSource(); const len=AudioCtx.sampleRate*0.2; const buffer=AudioCtx.createBuffer(1,len,AudioCtx.sampleRate); const data=buffer.getChannelData(0); for(let i=0;i<len;i++){ data[i] = (Math.random()*2-1) * Math.exp(-i/2000); } b.buffer=buffer; b.connect(g); b.start(t);} }
+function startMusic(bpm){ if(!AudioCtx || !musicOn) return; // simple pulse beat
+  const interval = 60 / bpm;
+  if(window._musicInterval) clearInterval(window._musicInterval);
+  if(!musicOn) return;
+  window._musicInterval = setInterval(()=>{ if(!AudioCtx) return; const t=AudioCtx.currentTime; const o=AudioCtx.createOscillator(); const g=AudioCtx.createGain(); o.type='sine'; o.frequency.setValueAtTime(440,t); g.gain.value=0.08; o.connect(g); g.connect(masterGain); o.start(t); o.stop(t+0.06); }, interval*1000);
+}
+
+// --- UTIL ---
+function rectsIntersect(a,b){ return !(a.x+a.w < b.x || a.x > b.x+b.w || a.y+a.h < b.y || a.y > b.y+b.h); }
+
+// --- PARTICLE POOL ---
+const particles = [];
+function spawnParticles(x,y,n, color){ for(let i=0;i<n;i++){ particles.push({x,y,dx:(Math.random()-0.5)*4,dy:-Math.random()*3-1,life:Math.random()*0.6+0.3,color}); }
+}
+
+// --- GAME STATE ---
+let game = null;
+function newGame(levelIndex){ const lvl = LEVELS[levelIndex]; game = {
+  levelIndex, level: JSON.parse(JSON.stringify(lvl)),
+  time:0, camX:0, speed: 220 * lvl.speed, // px/sec base
+  player: {x:120,y:260,w:34,h:34, vx:0, vy:0, onGround:false, jumps:0, canDash:true, dashCooldown:0},
+  entities: [], done:false, died:false, score:0, distance:0, paused:false, lastCheckpoint:0
+};
+  // spawn entities from level chunks
+  for(const c of game.level.chunks){ if(c.type==='platform') game.entities.push(Object.assign({kind:'platform',h:20},c));
+    if(c.type==='spike') game.entities.push({...c, kind:'spike',w:24,h:24});
+    if(c.type==='gap') game.entities.push({...c, kind:'gap'});
+    if(c.type==='saw') game.entities.push({...c, kind:'saw',w:36,h:36});
+    if(c.type==='portal') game.entities.push({...c, kind:'portal',w:34,h:34});
+  }
+  startMusic(lvl.bpm);
+}
+
+// --- PHYSICS & UPDATE (fixed timestep) ---
+const STEP = 1/60;
+let last = performance.now()/1000, acc = 0;
+function updateLoop(){ if(!game) return; const now = performance.now()/1000; let dt = now - last; last = now; if(game.paused) { render(0); requestAnimationFrame(updateLoop); return;} acc += Math.min(dt,0.05);
+  while(acc >= STEP){ step(STEP); acc -= STEP; }
+  const alpha = acc / STEP; render(alpha);
+  requestAnimationFrame(updateLoop);
+}
+function step(dt){ if(game.done) return; game.time += dt; const p = game.player;
+  // horizontal auto-run (camera-relative)
+  const worldSpeed = game.speed; const dx = worldSpeed * dt;
+  game.camX += dx; game.distance = Math.floor(game.camX/10);
+
+  // input: jump
+  if(Input.jump){ if(p.onGround || p.jumps < (game.level.allowDouble ? 1 : 0) + 1){ // simple double jump enable via portal
+      p.vy = -8.8; p.jumps++; p.onGround=false; spawnParticles(p.x,p.y+ p.h,6,'#00f0ff'); playSFX('jump'); Input.jump=false; }
+  }
+  // dash
+  if(Input.dash && p.canDash){ p.vx = 10; p.canDash=false; p.dashCooldown = 0.4; spawnParticles(p.x,p.y+10,10,'#ff3cac'); playSFX('dash'); Input.dash=false; }
+
+  // apply gravity
+  p.vy += 24 * dt; // gravity
+  // simple ground detection against platforms
+  p.x += p.vx * dt; p.y += p.vy * dt;
+
+  // move with world: camera advances, treat world as moving left relative to player
+  // check collisions against entities in viewport
+  const viewLeft = game.camX - 160; const viewRight = game.camX + WIDTH + 200;
+  p.onGround = false;
+  for(const e of game.entities){ if(e.x + e.w < viewLeft || e.x > viewRight) continue; if(e.kind==='platform'){
+      if(p.x + p.w > e.x && p.x < e.x + e.w){ const py = p.y + p.h; const platformTop = e.y; if(py > platformTop && p.y < platformTop + 20 && p.vy >= 0){ p.y = platformTop - p.h; p.vy = 0; p.onGround = true; p.jumps = 0; p.canDash = true; }
+      }
+    }
+    if(e.kind==='spike'){
+      const spikeRect = {x:e.x, y:e.y, w:e.w, h:e.h}; const playerRect = {x:p.x, y:p.y, w:p.w, h:p.h}; if(rectsIntersect(spikeRect,playerRect)){ die(); }
+    }
+    if(e.kind==='saw'){
+      // saw oscillation
+      const sawY = e.y + Math.sin(game.time * e.speed) * 18; const sr={x:e.x,y:sawY,w:e.w,h:e.h}; if(rectsIntersect(sr,{x:p.x,y:p.y,w:p.w,h:p.h})){ die(); }
+    }
+    if(e.kind==='portal'){
+      if(p.x + p.w > e.x && p.x < e.x + e.w){ // touch portal
+        if(e.effect==='double_jump'){ game.level.allowDouble = true; setTimeout(()=>{ game.level.allowDouble=false; }, e.duration); spawnParticles(e.x,e.y,12,'#00f0ff'); }
+        if(e.effect==='dash'){ p.canDash = true; spawnParticles(e.x,e.y,12,'#ff3cac'); }
+        // disable portal after use
+        e.x = -99999;
+      }
+    }
+  }
+  // dash friction
+  if(p.vx > 0){ p.vx -= 30 * dt; if(p.vx < 0) p.vx=0; }
+  // fall off world
+  if(p.y > HEIGHT + 200) die();
+
+  // update particles
+  for(let i=particles.length-1;i>=0;i--){ const t=particles[i]; t.x += t.dx; t.y += t.dy; t.dy += 0.08; t.life -= dt; if(t.life <=0) particles.splice(i,1); }
+
+  // check completion
+  const lastPlatform = game.entities.filter(e=>e.kind==='platform').slice(-1)[0]; if(lastPlatform && game.camX > lastPlatform.x + lastPlatform.w - 100){ win(); }
+}
+
+function die(){ if(game.died) return; playSFX('crash'); spawnParticles(game.player.x, game.player.y, 24,'#ff3cac'); game.died = true; game.done = true; // screen shake via flag
+  // update highscores
+  const li = game.levelIndex; SAVE.highscores[li] = Math.max(SAVE.highscores[li]||0, game.distance); save(); setTimeout(()=>{ showMenu(); }, 800);
+}
+function win(){ game.done = true; const li = game.levelIndex; SAVE.unlocked = Array.from(new Set([...SAVE.unlocked, li+1])); SAVE.highscores[li] = Math.max(SAVE.highscores[li]||0, game.distance); save(); playSFX('jump'); setTimeout(()=>{ showMenu(); }, 800); }
+
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(SAVE)); updateUI(); }
+
+// --- RENDER ---
+let shake = 0;
+function render(alpha){ if(!game) return; const p = game.player; // interpolate positions not implemented fully for brevity
+  // clear
+  ctx.clearRect(0,0,WIDTH,HEIGHT);
+  // apply camera transform
+  const camX = game.camX + (Math.random()-0.5)*shake;
+  // parallax background (procedural)
+  ctx.save(); ctx.translate(-camX*game.level.parallax[0].speed * 0.6,0);
+  drawBackground(0); ctx.restore();
+  ctx.save(); ctx.translate(-camX*game.level.parallax[1].speed * 0.9,0);
+  drawBackground(1); ctx.restore();
+
+  // draw platforms and obstacles
+  ctx.save(); ctx.translate(-camX,0);
+  for(const e of game.entities){ if(e.x + e.w < game.camX - 200 || e.x > game.camX + WIDTH + 200) continue;
+      if(e.kind==='platform'){
+        roundRect(ctx,e.x,e.y,e.w,e.h,6); ctx.fillStyle='rgba(0,255,255,0.06)'; ctx.fill(); ctx.strokeStyle='rgba(0,255,255,0.18)'; ctx.stroke();
+      }
+      if(e.kind==='spike'){
+        // draw simple triangle
+        ctx.fillStyle='rgba(255,60,100,0.9)'; ctx.beginPath(); ctx.moveTo(e.x,e.y+e.h); ctx.lineTo(e.x+e.w/2,e.y); ctx.lineTo(e.x+e.w,e.y+e.h); ctx.closePath(); ctx.fill();
+      }
+      if(e.kind==='saw'){
+        const sy = e.y + Math.sin(game.time * e.speed) * 18; ctx.save(); ctx.translate(e.x+e.w/2, sy+e.h/2); ctx.rotate(game.time*e.speed*4); ctx.fillStyle='rgba(200,200,200,0.95)'; ctx.beginPath(); ctx.arc(0,0,e.w/2,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+      if(e.kind==='portal'){
+        // glowing circle
+        ctx.beginPath(); ctx.arc(e.x+e.w/2, e.y+e.h/2, e.w/2+6,0,Math.PI*2); ctx.fillStyle='rgba(0,255,255,0.08)'; ctx.fill(); ctx.beginPath(); ctx.arc(e.x+e.w/2, e.y+e.h/2, e.w/2,0,Math.PI*2); ctx.strokeStyle='rgba(0,255,255,0.9)'; ctx.stroke(); }
+  }
+  // draw player
+  ctx.fillStyle='rgba(0,240,255,0.95)'; ctx.fillRect(p.x,p.y,p.w,p.h);
+  // glow
+  ctx.fillStyle='rgba(0,240,255,0.05)'; ctx.fillRect(p.x-6,p.y-6,p.w+12,p.h+12);
+  // particles
+  for(const pt of particles){ ctx.fillStyle = pt.color; ctx.fillRect(pt.x,pt.y,3,3); }
+  ctx.restore();
+
+  // HUD
+  document.getElementById('hud').innerHTML = 'Distance: '+game.distance + ' &nbsp; | &nbsp; Level: '+(game.levelIndex+1);
+  document.getElementById('highscoreDisplay').textContent = SAVE.highscores[game.levelIndex] || 0;
+}
+
+function drawBackground(layer){ // simple bars and stars
+  ctx.fillStyle = layer===0 ? 'rgba(2,6,18,0.9)' : 'rgba(6,10,30,0.5)'; ctx.fillRect(0,0,5000,HEIGHT);
+  // angled neon lines
+  ctx.strokeStyle = 'rgba(0,255,255,0.04)'; ctx.lineWidth = 2;
+  for(let i=0;i<50;i++){ ctx.beginPath(); ctx.moveTo(i*180, HEIGHT); ctx.lineTo(i*300 - (game.time*10*(layer+1)), 20); ctx.stroke(); }
+}
+
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// --- UI & Menu ---
+function showMenu(){ document.getElementById('menu').style.display='flex'; document.getElementById('levelMenu').style.display='none'; document.getElementById('settingsMenu').style.display='none'; document.getElementById('pauseOverlay').style.display='none'; }
+function showLevelSelect(){ document.getElementById('menu').style.display='none'; document.getElementById('levelMenu').style.display='flex'; const container = document.getElementById('levelButtons'); container.innerHTML=''; LEVELS.forEach((l,i)=>{ const btn=document.createElement('button'); btn.className='btn'; btn.textContent=(i+1)+'. '+l.name + (SAVE.unlocked.includes(i) ? '' : ' (locked)'); btn.disabled = !SAVE.unlocked.includes(i); btn.onclick = ()=>{ startGame(i); }; container.appendChild(btn); }); }
+function showSettings(){ document.getElementById('menu').style.display='none'; document.getElementById('settingsMenu').style.display='flex'; }
+
+document.getElementById('playBtn').addEventListener('click',()=>startGame(0));
+document.getElementById('levelBtn').addEventListener('click',showLevelSelect);
+document.getElementById('settingsBtn').addEventListener('click',showSettings);
+document.getElementById('backFromLevel').addEventListener('click',showMenu);
+document.getElementById('settingsBack').addEventListener('click',showMenu);
+document.getElementById('resumeBtn').addEventListener('click',()=>{ game.paused=false; document.getElementById('pauseOverlay').style.display='none'; });
+document.getElementById('restartBtn').addEventListener('click',()=>{ newGame(game.levelIndex); document.getElementById('pauseOverlay').style.display='none'; });
+document.getElementById('toLevelSelectBtn').addEventListener('click',showLevelSelect);
+
+function startGame(levelIndex=0){ document.getElementById('menu').style.display='none'; document.getElementById('levelMenu').style.display='none'; document.getElementById('settingsMenu').style.display='none'; newGame(levelIndex); last = performance.now()/1000; acc = 0; requestAnimationFrame(updateLoop); }
+function togglePause(){ if(!game) return; game.paused = !game.paused; document.getElementById('pauseOverlay').style.display = game.paused ? 'flex' : 'none'; }
+
+// settings binds
+document.getElementById('musicToggle').addEventListener('change',e=>{ musicOn = e.target.checked; if(!musicOn && window._musicInterval) clearInterval(window._musicInterval); else if(game) startMusic(game.level.bpm); });
+document.getElementById('sfxToggle').addEventListener('change',e=>{ sfxOn = e.target.checked; });
+document.getElementById('masterVol').addEventListener('input',e=>{ masterVol = parseFloat(e.target.value); if(masterGain) masterGain.gain.value = masterVol; });
+
+function updateUI(){ /* update anything if needed */ }
+
+// initial UI state
+showMenu(); updateUI();
+
+// expose SAVE for debug
+window._SAVE = SAVE;
+// --- Player Cube ---
+const player = {x:80, y:200, w:30, h:30, vy:0, onGround:false};
+
+function updatePlayer(dt){
+  player.vy += 0.6; // gravity
+  player.y += player.vy;
+  if(player.y+player.h > groundLevel){ player.y = groundLevel-player.h; player.vy=0; player.onGround=true; }
+}
+
+function drawPlayer(ctx){
+  ctx.fillStyle = '#0ff';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+}
+
+// --- Progress Bar ---
+let progress = 0; // 0-1
+function updateProgress(){
+  progress = Math.min(1, cameraX / levelLength);
+}
+function drawProgress(ctx){
+  const w = canvas.width * 0.6;
+  const x = (canvas.width - w)/2;
+  const y = 20;
+  ctx.fillStyle = '#555'; ctx.fillRect(x,y,w,10);
+  ctx.fillStyle = '#0f0'; ctx.fillRect(x,y,w*progress,10);
+  ctx.fillStyle = '#fff'; ctx.fillText(Math.floor(progress*100)+'%', x+w+10, y+10);
+}
+
+// Insert into render loop:
+// drawPlayer(ctx);
+// drawProgress(ctx);
+</script>
+</body>
+</html>

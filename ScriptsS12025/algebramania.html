@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Algebramania Rebirth</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      font-family: 'Segoe UI', sans-serif;
+      color: white;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 3em;
+      text-shadow: 2px 2px 5px #0ff;
+      animation: bounce 2s infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    select, input[type="text"], button {
+      padding: 10px;
+      margin: 10px 0;
+      width: 100%;
+      font-size: 16px;
+    }
+    .question-box {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 10px 0;
+    }
+    .correct {
+      background-color: #28a745;
+    }
+    .xp-bar {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 5px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .xp-fill {
+      background: #0ff;
+      height: 20px;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+    .button-glow {
+      background-color: #00bcd4;
+      border: none;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 0 10px #00bcd4;
+    }
+    .answer-button {
+      margin-top: 10px;
+      background-color: #673ab7;
+      color: #fff;
+    }
+    .mode {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Algebramania Rebirth</h1>
+
+    <div>
+      <label for="username">Enter Username:</label>
+      <input type="text" id="username" placeholder="Your name"/>
+      <button class="button-glow" onclick="login()">Login</button>
+    </div>
+
+    <div id="game" style="display:none;">
+      <label for="classSelect">Select Class:</label>
+      <select id="classSelect" onchange="refreshQuestions()">
+        <option value="">--Select--</option>
+        <option value="6">Class 6</option>
+        <option value="7">Class 7</option>
+        <option value="8">Class 8</option>
+        <option value="9">Class 9</option>
+        <option value="10">Class 10</option>
+        <option value="11">Class 11</option>
+        <option value="12">Class 12</option>
+      </select>
+
+      <div class="xp-bar">
+        <div class="xp-fill" id="xpFill"></div>
+      </div>
+      <p>Level: <span id="level">1</span> | XP: <span id="xp">0</span>/<span id="nextXp">100</span></p>
+
+      <div class="mode">
+        <button class="button-glow" onclick="setMode('practice')">Practice</button>
+        <button class="button-glow" onclick="setMode('time')">Time Attack</button>
+        <button class="button-glow" onclick="setMode('boss')">Boss Battle</button>
+        <button class="button-glow" onclick="refreshQuestions()">Refresh Questions</button>
+      </div>
+
+      <div id="questions"></div>
+    </div>
+  </div>
+
+<script>
+// === CONTINUATION OF SCRIPT ===
+
+function getQuestionByClass(selectedClass) {
+    switch (selectedClass) {
+        case "6":
+            return `${randomInt(1, 10)}x + ${randomInt(1, 10)}`;
+        case "7":
+            return `${randomInt(1, 5)}x + ${randomInt(1, 5)}y - ${randomInt(1, 5)}`;
+        case "8":
+            return `(${randomInt(1, 3)}x + ${randomInt(1, 5)})(x - ${randomInt(1, 5)})`;
+        case "9":
+            let a = randomInt(1, 5), b = randomInt(1, 5), c = a * b;
+            return `x² + ${a + b}x + ${c}`;
+        case "10":
+            return `(${randomInt(1, 3)}x + ${randomInt(1, 3)})² - ${randomInt(1, 3)}x²`;
+        case "11":
+            return `(${randomInt(1, 5)}x + ${randomInt(1, 3)}) / (${randomInt(1, 3)}x + 1)`;
+        case "12":
+            return `(${randomInt(1, 3)}x + (${randomInt(1, 3)}y - x²)) / x`;
+        default:
+            return `${randomInt(1, 10)}x + ${randomInt(1, 10)}`;
+    }
+}
+
+function getXPByClass(selectedClass) {
+    switch (selectedClass) {
+        case "6": return 5;
+        case "7": return 10;
+        case "8": return 20;
+        case "9": return 50;
+        case "10": return 100;
+        case "11": return 120;
+        case "12": return 200;
+        default: return 5;
+    }
+}
+
+function calculateNextLevelXP(level) {
+    if (level >= 100) return Infinity;
+    if (level < 10) return 100 * level;
+    if (level < 50) return 500 + (level * 50);
+    return 1000 + (level * 100);
+}
+
+function levelUpAnimation(newLevel) {
+    const popup = document.createElement("div");
+    popup.innerText = `🎉 Level Up! You reached Level ${newLevel}! 🎉`;
+    popup.classList.add("level-up-popup");
+    document.body.appendChild(popup);
+    setTimeout(() => popup.remove(), 3000);
+}
+
+function updateXP(xpGained) {
+    xp += xpGained;
+    xpBar.style.width = Math.min((xp / calculateNextLevelXP(level)) * 100, 100) + "%";
+    if (xp >= calculateNextLevelXP(level)) {
+        xp -= calculateNextLevelXP(level);
+        level++;
+        levelEl.innerText = `Level ${level}`;
+        levelUpAnimation(level);
+        if (level === 100) {
+            alert("🎉 Max Level Reached! You can now Rebirth!");
+        }
+    }
+    localStorage.setItem("xp", xp);
+    localStorage.setItem("level", level);
+}
+
+function resetProgress() {
+    level = 1;
+    xp = 0;
+    xpBar.style.width = "0%";
+    levelEl.innerText = `Level 1`;
+    localStorage.setItem("level", "1");
+    localStorage.setItem("xp", "0");
+}
+
+// Rebirth System
+function handleRebirth() {
+    if (level >= 100) {
+        const confirmRebirth = confirm("Are you sure you want to Rebirth? You'll restart at Level 1.");
+        if (confirmRebirth) {
+            resetProgress();
+            alert("🔁 Rebirth complete! Start leveling again!");
+        }
+    } else {
+        alert("⛔ Reach Level 100 to Rebirth!");
+    }
+}
+
+document.getElementById("rebirthBtn").addEventListener("click", handleRebirth);
+
+</script>
+
+    let currentClass = "";
+    let xp = 0, level = 1, nextXp = 100;
+    let currentMode = 'practice';
+    const questionCount = 10;
+
+    function login() {
+      const name = document.getElementById("username").value;
+      if (name.trim() !== "") {
+        document.getElementById("game").style.display = "block";
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      refreshQuestions();
+    }
+
+    function getXpForClass(cls) {
+      const xpMap = {
+        6: 5, 7: 10, 8: 20,
+        9: 50, 10: 100, 11: 120, 12: 200
+      };
+      return xpMap[cls] || 1;
+    }
+
+    function generateQuestion(cls) {
+      switch (parseInt(cls)) {
+        case 6:
+          return `${Math.floor(Math.random()*5)+1}x + ${Math.floor(Math.random()*10)+1}`;
+        case 7:
+          return `${Math.floor(Math.random()*5)+1}x + ${Math.floor(Math.random()*5)+1}y - ${Math.floor(Math.random()*5)}`;
+        case 8:
+          return `(${Math.floor(Math.random()*5)+1}x + ${Math.floor(Math.random()*5)+1})(x - ${Math.floor(Math.random()*5)+1})`;
+        case 9:
+          return `x² + ${Math.floor(Math.random()*10)}x + ${Math.floor(Math.random()*25)}`;
+        case 10:
+          return `${Math.floor(Math.random()*3)+1}x² + ${Math.floor(Math.random()*5)}x - ${Math.floor(Math.random()*10)}`;
+        case 11:
+          return `(${Math.floor(Math.random()*3)+1}x + ${Math.floor(Math.random()*5)}) / (x + ${Math.floor(Math.random()*5)+1})`;
+        case 12:
+          return `(2x + (3y - x²)) / x`;
+        default:
+          return `x + ${Math.floor(Math.random()*10)}`;
+      }
+    }
+
+    function refreshQuestions() {
+      currentClass = document.getElementById("classSelect").value;
+      const container = document.getElementById("questions");
+      container.innerHTML = "";
+      for (let i = 0; i < questionCount; i++) {
+        const qText = generateQuestion(currentClass);
+        const div = document.createElement("div");
+        div.className = "question-box";
+        div.innerHTML = `
+          <strong>Q${i+1}:</strong> ${qText}
+          <br><input type="text" oninput="checkAnswer(this, ${i})"/>
+          <button class="button-glow answer-button" onclick="showAnswer(this, '${qText}')">Show Answer</button>
+          <span class="answer" style="display:none;">Answer: ${qText}</span>
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    function checkAnswer(input, index) {
+      if (input.value.trim() !== "") {
+        input.classList.add("correct");
+        gainXp();
+      }
+    }
+
+    function showAnswer(btn, q) {
+      const span = btn.nextElementSibling;
+      span.style.display = "inline";
+    }
+
+    function gainXp() {
+      const xpGain = getXpForClass(currentClass);
+      xp += xpGain;
+      if (xp >= nextXp) {
+        level++;
+        xp = 0;
+        nextXp = nextXp * 2;
+        alert("🎉 Level Up! Now Level " + level);
+      }
+      updateXpBar();
+    }
+
+    function updateXpBar() {
+      document.getElementById("xp").innerText = xp;
+      document.getElementById("level").innerText = level;
+      document.getElementById("nextXp").innerText = nextXp;
+      document.getElementById("xpFill").style.width = (xp / nextXp) * 100 + "%";
+    }
+  </script>
+</body>
+</html>
